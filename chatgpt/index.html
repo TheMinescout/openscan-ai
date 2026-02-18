@@ -1,0 +1,760 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>OpenScan-AI — Document & Object Scanner</title>
+
+<!-- Tesseract.js and jsPDF via CDN -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4.0.2/dist/tesseract.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+<style>
+  :root{
+    --bg:#08101a;
+    --card: rgba(255,255,255,0.04);
+    --accent: rgba(45, 185, 255, 0.85);
+    --glass-border: rgba(255,255,255,0.06);
+    --muted: rgba(255,255,255,0.55);
+    --glass-glow: rgba(45,185,255,0.06);
+    --radius: 16px;
+  }
+  html,body{height:100%;margin:0;background:
+    radial-gradient(1000px 600px at 10% 10%, rgba(45,185,255,0.06), transparent 6%),
+    linear-gradient(180deg, #031019 0%, #07131a 100%);
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+    color:#e6f7ff;
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+  }
+
+  /* App container */
+  .app {
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:28px;
+    box-sizing:border-box;
+  }
+
+  /* Main card - glassmorphism */
+  .card {
+    width:100%;
+    max-width:1100px;
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    border-radius:var(--radius);
+    border:1px solid var(--glass-border);
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6), 0 1px 0 var(--glass-glow);
+    padding:18px;
+    display:grid;
+    gap:16px;
+    grid-template-columns: 1fr 420px;
+  }
+
+  /* Responsive */
+  @media (max-width:980px){
+    .card { grid-template-columns: 1fr; padding:14px; }
+  }
+
+  /* Left column: scanner */
+  .scanner {
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+
+  .viewfinder {
+    position:relative;
+    border-radius:12px;
+    overflow:hidden;
+    background:linear-gradient(180deg, rgba(0,0,0,0.35), rgba(0,0,0,0.45));
+    border:1px solid rgba(255,255,255,0.03);
+    min-height:360px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+
+  video, canvas {
+    width:100%;
+    height:100%;
+    object-fit:cover;
+    display:block;
+    -webkit-transform: translateZ(0); /* smoother */
+  }
+
+  /* Scanning overlay */
+  .scan-overlay {
+    pointer-events:none;
+    position:absolute;
+    inset:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+
+  .scan-line {
+    position:absolute;
+    left:0;
+    right:0;
+    height:2px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    box-shadow: 0 0 12px rgba(45,185,255,0.6);
+    transform: translateY(-140%);
+    animation: scan 3s linear infinite;
+    opacity:0.95;
+  }
+  @keyframes scan {
+    0%{ transform: translateY(-100%); }
+    50%{ transform: translateY(100%); }
+    100%{ transform: translateY(300%); }
+  }
+
+  /* Controls */
+  .controls {
+    display:flex;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .btn {
+    background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));
+    border: 1px solid rgba(255,255,255,0.04);
+    padding:10px 12px;
+    border-radius:10px;
+    color:var(--muted);
+    font-weight:600;
+    cursor:pointer;
+    display:inline-flex;
+    gap:8px;
+    align-items:center;
+    transition:transform .12s ease, color .12s ease;
+  }
+  .btn:hover{ transform:translateY(-3px); color:#fff; }
+  .btn.primary{
+    background: linear-gradient(90deg, rgba(45,185,255,0.12), rgba(45,185,255,0.06));
+    color:#eafcff;
+    border:1px solid rgba(45,185,255,0.18);
+    box-shadow: 0 6px 18px rgba(45,185,255,0.06);
+  }
+  .btn.ghost{ background:transparent; border:1px dashed rgba(255,255,255,0.03); }
+
+  input[type=file]{ display:none; }
+
+  /* Right column: results */
+  .panel {
+    background: linear-gradient(180deg, rgba(255,255,255,0.015), rgba(255,255,255,0.01));
+    border-radius:12px;
+    padding:14px;
+    border:1px solid rgba(255,255,255,0.03);
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+    min-height:360px;
+  }
+
+  .panel h3{ margin:0; font-size:14px; color:#dff7ff; }
+  .preview {
+    border-radius:8px;
+    overflow:hidden;
+    background: #000;
+    min-height:160px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  .preview img { width:100%; height:100%; object-fit:contain; display:block; }
+
+  .text-area {
+    flex:1;
+    display:flex;
+    flex-direction:column;
+  }
+  textarea {
+    resize:vertical;
+    min-height:120px;
+    max-height:240px;
+    background:transparent;
+    border:1px solid rgba(255,255,255,0.03);
+    color:#e6f7ff;
+    padding:10px;
+    border-radius:8px;
+    font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
+    font-size:13px;
+  }
+
+  .small {
+    font-size:13px;
+    color:var(--muted);
+  }
+
+  /* OCR progress */
+  .progress {
+    height:10px;
+    width:100%;
+    background:rgba(255,255,255,0.03);
+    border-radius:999px;
+    overflow:hidden;
+  }
+  .progress > i {
+    display:block;
+    height:100%;
+    width:0%;
+    background:linear-gradient(90deg, rgba(45,185,255,0.9), rgba(90,220,255,0.7));
+    transition:width .25s linear;
+  }
+
+  /* footer row */
+  .panel-footer { display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+
+  .muted { color:var(--muted); font-size:13px; }
+
+  /* nice tiny icon */
+  .icon { width:18px; height:18px; display:inline-block; opacity:0.95; }
+
+  /* helper */
+  .row { display:flex; gap:8px; align-items:center; }
+  .center { display:flex; align-items:center; justify-content:center; }
+  .spaced { justify-content:space-between; }
+
+  /* small screen adjustments */
+  @media (max-width:560px){
+    .btn { padding:8px 10px; font-size:13px; }
+    .card{ padding:12px; border-radius:12px;}
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="card" role="application" aria-label="OpenScan AI scanner">
+    <!-- LEFT: Scanner -->
+    <section class="scanner" aria-label="scanner section">
+      <div class="viewfinder" id="viewfinder" aria-live="polite">
+        <video id="video" autoplay playsinline muted></video>
+        <canvas id="captureCanvas" style="display:none;"></canvas>
+
+        <div class="scan-overlay" aria-hidden="true">
+          <div class="scan-line" id="scanLine"></div>
+        </div>
+
+        <div id="fallbackUploadNotice" style="position:absolute;inset:0;display:none;align-items:center;justify-content:center;padding:18px;">
+          <div style="text-align:center;color:var(--muted);max-width:80%;">Camera not available — use <label class="btn" for="uploadInput" style="display:inline-flex;cursor:pointer;">Upload Image</label></div>
+        </div>
+      </div>
+
+      <div class="controls" role="toolbar" aria-label="scanner controls">
+        <button class="btn primary" id="snapBtn" title="Snap from camera">
+          <svg class="icon" viewBox="0 0 24 24"><path fill="currentColor" d="M12 5a3 3 0 0 1 3 3h3.5A1.5 1.5 0 0 1 20 9.5V18a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3V9.5A1.5 1.5 0 0 1 5.5 8H9a3 3 0 0 1 3-3z"/></svg>
+          Snap
+        </button>
+
+        <label class="btn ghost" for="uploadInput" title="Upload an image">
+          <svg class="icon" viewBox="0 0 24 24"><path fill="currentColor" d="M5 20h14v-2H5v2zm7-18l-5 5h3v6h4v-6h3l-5-5z"/></svg>
+          Upload
+        </label>
+        <input id="uploadInput" type="file" accept="image/*">
+
+        <button class="btn" id="processBtn" title="Process to scanned look">Process</button>
+
+        <button class="btn" id="ocrBtn" title="Run OCR (Tesseract)">OCR</button>
+
+        <div style="flex:1"></div>
+
+        <button class="btn" id="flipBtn" title="Toggle camera (if available)">Flip</button>
+      </div>
+
+      <div class="small muted" id="statusLine" aria-live="polite">Ready</div>
+    </section>
+
+    <!-- RIGHT: Preview & OCR -->
+    <aside class="panel" aria-label="results panel">
+      <div class="row spaced">
+        <h3>Preview & OCR</h3>
+        <div class="row">
+          <button class="btn" id="downloadPdfBtn" title="Download PDF">
+            <svg class="icon" viewBox="0 0 24 24"><path fill="currentColor" d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM13 9V3.5L18.5 9H13z"/></svg>
+            Download PDF
+          </button>
+          <button class="btn" id="copyTextBtn" title="Copy OCR text to clipboard">Copy Text</button>
+        </div>
+      </div>
+
+      <div class="preview" id="previewBox" aria-hidden="false">
+        <img id="previewImage" alt="Scanned preview" src="" style="display:none;">
+        <div id="emptyPreview" style="color:var(--muted);padding:18px;">No image yet — snap or upload an image.</div>
+      </div>
+
+      <div class="text-area">
+        <div style="display:flex;gap:8px;align-items:center;justify-content:space-between;">
+          <div class="small muted">OCR Output</div>
+          <div class="small muted" id="ocrMeta">0 chars</div>
+        </div>
+        <textarea id="ocrText" placeholder="OCR output will appear here..." aria-label="OCR results"></textarea>
+
+        <div style="display:flex;gap:10px;align-items:center;">
+          <div style="flex:1">
+            <div class="progress" aria-hidden="false" title="OCR progress"><i id="progressBar"></i></div>
+          </div>
+          <div style="min-width:110px;text-align:right;">
+            <button class="btn" id="smartBtn" title="Smart analysis / summary">Smart Analysis</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-footer">
+        <div class="muted">OpenScan-AI • Local-only in-browser scanner</div>
+        <div style="display:flex;gap:8px;">
+          <div class="small muted" id="version">Tesseract.js loaded: <span id="tessStatus">no</span></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<script>
+/* OpenScan-AI single-file app
+   - Modular functions
+   - Camera, upload, processing, OCR via Tesseract.js, PDF via jsPDF
+*/
+
+(() => {
+  // Elements
+  const video = document.getElementById('video');
+  const captureCanvas = document.getElementById('captureCanvas');
+  const ctx = captureCanvas.getContext('2d', { alpha: false });
+  const snapBtn = document.getElementById('snapBtn');
+  const uploadInput = document.getElementById('uploadInput');
+  const previewImage = document.getElementById('previewImage');
+  const emptyPreview = document.getElementById('emptyPreview');
+  const previewBox = document.getElementById('previewBox');
+  const processBtn = document.getElementById('processBtn');
+  const ocrBtn = document.getElementById('ocrBtn');
+  const ocrText = document.getElementById('ocrText');
+  const progressBar = document.getElementById('progressBar');
+  const ocrMeta = document.getElementById('ocrMeta');
+  const statusLine = document.getElementById('statusLine');
+  const downloadPdfBtn = document.getElementById('downloadPdfBtn');
+  const copyTextBtn = document.getElementById('copyTextBtn');
+  const smartBtn = document.getElementById('smartBtn');
+  const tessStatus = document.getElementById('tessStatus');
+  const fallbackUploadNotice = document.getElementById('fallbackUploadNotice');
+  const flipBtn = document.getElementById('flipBtn');
+
+  // State
+  let stream = null;
+  let facingMode = "environment"; // try environment first
+  let currentImage = null; // Image object or dataURL
+  let processedCanvas = null;
+  let worker = null;
+  let tesseractLoaded = false;
+  let ocrInProgress = false;
+  let lastOCR = "";
+
+  // Utilities
+  const logStatus = (s) => { statusLine.textContent = s; };
+  const setProgress = (p) => { progressBar.style.width = Math.round(p*100) + '%' };
+
+  /* Initialize camera */
+  async function initCamera(){
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      logStatus('Camera not supported');
+      fallbackUploadNotice.style.display = 'flex';
+      return;
+    }
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode }, audio:false });
+      video.srcObject = stream;
+      logStatus('Camera online');
+      fallbackUploadNotice.style.display = 'none';
+    } catch (err) {
+      console.warn('Camera init failed:', err);
+      logStatus('Camera blocked or not available');
+      fallbackUploadNotice.style.display = 'flex';
+    }
+  }
+
+  /* Toggle between front/back if available */
+  async function toggleCamera(){
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+    facingMode = (facingMode === 'environment') ? 'user' : 'environment';
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      stream = null;
+    }
+    await initCamera();
+  }
+
+  /* Snap from video */
+  function snapFromVideo(){
+    if (!video.srcObject) {
+      logStatus('No camera feed. Try Upload.');
+      return;
+    }
+    // set canvas size to video
+    const vw = video.videoWidth || 1280;
+    const vh = video.videoHeight || 720;
+    captureCanvas.width = vw;
+    captureCanvas.height = vh;
+    ctx.drawImage(video, 0, 0, vw, vh);
+    const dataURL = captureCanvas.toDataURL('image/jpeg', 0.95);
+    loadImageFromDataURL(dataURL);
+    logStatus('Captured image from camera');
+  }
+
+  /* Load image from file input or dataURL */
+  function loadImageFromFile(file){
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      loadImageFromDataURL(e.target.result);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function loadImageFromDataURL(dataURL){
+    const img = new Image();
+    img.onload = () => {
+      // store original
+      currentImage = img;
+      showPreview(img);
+      // prepare processed canvas as copy of original
+      processedCanvas = document.createElement('canvas');
+      processedCanvas.width = img.naturalWidth;
+      processedCanvas.height = img.naturalHeight;
+      const pctx = processedCanvas.getContext('2d', { alpha: false });
+      pctx.drawImage(img, 0, 0, processedCanvas.width, processedCanvas.height);
+      logStatus('Image loaded');
+    };
+    img.onerror = () => {
+      logStatus('Failed to load image');
+    };
+    img.src = dataURL;
+  }
+
+  function showPreview(img){
+    previewImage.src = img.src;
+    previewImage.style.display = 'block';
+    emptyPreview.style.display = 'none';
+  }
+
+  /* Image processing: scanned document look (grayscale + contrast + slight denoise/threshold) */
+  function processImage(){
+    if (!processedCanvas) {
+      logStatus('No image to process');
+      return;
+    }
+    const pctx = processedCanvas.getContext('2d', { alpha: false });
+    // Get image data
+    const w = processedCanvas.width;
+    const h = processedCanvas.height;
+    let imageData = pctx.getImageData(0,0,w,h);
+    let d = imageData.data;
+
+    // Convert to grayscale and apply contrast/threshold
+    // Contrast adjustment factor:
+    const contrast = 1.6; // >1 increases contrast
+    const brightness = 0; // -255..255
+    // quick contrast transform
+    const factor = (259 * (contrast + 255)) / (255 * (259 - contrast));
+    // loop through pixels (digit-by-digit arithmetic style as system requires caution with arithmetic)
+    for (let i = 0; i < d.length; i += 4) {
+      // compute luminance with standard weights
+      const r = d[i], g = d[i+1], b = d[i+2];
+      // grayscale luminance
+      const lum = Math.round(0.299 * r + 0.587 * g + 0.114 * b);
+      // apply contrast and brightness
+      let val = Math.round(factor * (lum - 128) + 128 + brightness);
+      // apply a non-linear boost (soft threshold) for scanned look
+      // small sharpening/threshold:
+      val = Math.max(0, Math.min(255, val));
+      if (val > 200) val = 255;
+      else if (val < 60) val = Math.max(0, val - 20);
+      d[i] = d[i+1] = d[i+2] = val;
+      d[i+3] = 255;
+    }
+
+    // put back
+    pctx.putImageData(imageData, 0, 0);
+
+    // optional box-shadow / vignette to mimic scanning device — draw a subtle vignette
+    pctx.fillStyle = 'rgba(0,0,0,0.03)';
+    pctx.fillRect(0,0,w,h);
+
+    // create dataURL and update preview
+    const processedData = processedCanvas.toDataURL('image/jpeg', 0.96);
+    previewImage.src = processedData;
+    logStatus('Processed image to scanned look');
+  }
+
+  /* OCR with Tesseract.js (with timeout fallback that triggers Smart Analysis) */
+  async function initTesseract(){
+    if (tesseractLoaded) return;
+    logStatus('Loading Tesseract.js...');
+    try {
+      // create worker
+      worker = Tesseract.createWorker({
+        logger: m => {
+          // update progress for main steps
+          if (m.status && m.progress !== undefined) {
+            if (m.status === 'recognizing text') {
+              setProgress(m.progress);
+              logStatus(`OCR: ${Math.round(m.progress*100)}%`);
+            } else {
+              // show step
+              setProgress(0);
+              logStatus(`${m.status}`);
+            }
+          }
+        }
+      });
+      await worker.load();
+      // default to english; allow other languages by change if desired
+      await worker.loadLanguage('eng');
+      await worker.initialize('eng');
+      tesseractLoaded = true;
+      tessStatus.textContent = 'yes';
+      logStatus('Tesseract ready');
+    } catch (err) {
+      console.error('Tesseract init error', err);
+      tessStatus.textContent = 'no';
+      logStatus('Tesseract failed to load');
+    }
+  }
+
+  async function runOCR({ timeoutSeconds = 14 } = {}){
+    if (!processedCanvas && !currentImage) {
+      logStatus('No image to OCR');
+      return;
+    }
+    await initTesseract();
+
+    if (!worker) {
+      logStatus('OCR unavailable — use Smart Analysis');
+      smartAnalysis();
+      return;
+    }
+
+    // prepare image data
+    const dataURL = (processedCanvas) ? processedCanvas.toDataURL('image/png') : currentImage.src;
+
+    // Start OCR with timeout fallback: show Smart Analysis if OCR takes too long
+    ocrInProgress = true;
+    setProgress(0);
+    logStatus('Starting OCR...');
+    ocrBtn.disabled = true;
+    let timedOut = false;
+
+    const ocrPromise = (async () => {
+      try {
+        const result = await worker.recognize(dataURL);
+        return result;
+      } catch (err) {
+        console.error('OCR error', err);
+        return { data: { text: '' } };
+      } finally {
+        ocrInProgress = false;
+      }
+    })();
+
+    const timeoutPromise = new Promise(resolve => {
+      setTimeout(() => {
+        timedOut = true;
+        resolve({ timeout: true });
+      }, timeoutSeconds * 1000);
+    });
+
+    const result = await Promise.race([ocrPromise, timeoutPromise]);
+
+    if (result && result.timeout) {
+      logStatus('OCR taking long — showing Smart Analysis; OCR will continue and update when ready.');
+      smartAnalysis(); // generate fallback summary from image heuristics
+      // wait for the actual OCR to finish and then update UI if it arrives later
+      ocrPromise.then(finalResult => {
+        if (finalResult && finalResult.data && finalResult.data.text) {
+          lastOCR = finalResult.data.text.trim();
+          if (lastOCR.length) {
+            ocrText.value = lastOCR;
+            ocrMeta.textContent = `${lastOCR.length} chars (final)`;
+            setProgress(1);
+            logStatus('OCR completed and updated.');
+          } else {
+            logStatus('OCR completed but no text found.');
+          }
+        }
+        ocrBtn.disabled = false;
+      }).catch(err => {
+        console.warn('OCR finalization error', err);
+        ocrBtn.disabled = false;
+      });
+      return;
+    }
+
+    // result arrived before timeout (or no timeout)
+    if (result && result.data) {
+      const text = (result.data.text || '').trim();
+      lastOCR = text;
+      ocrText.value = text || '— No text recognized —';
+      ocrMeta.textContent = `${(text||'').length} chars`;
+      setProgress(1);
+      logStatus('OCR finished.');
+    } else {
+      logStatus('OCR failed to produce text.');
+      smartAnalysis();
+    }
+    ocrBtn.disabled = false;
+  }
+
+  /* Smart Analysis fallback — mock AI summary when OCR empty or slow */
+  function smartAnalysis(){
+    // Try to extract meaningful lines from the processed image by using a reduced-accuracy OCR pass
+    // But since we want a quick fallback, we produce a concise mock summary that is helpful.
+    const summary = generateMockSummaryFromImage();
+    ocrText.value = summary;
+    ocrMeta.textContent = `${summary.length} chars (smart summary)`;
+    setProgress(0.95);
+    logStatus('Smart Analysis provided (fallback).');
+  }
+
+  function generateMockSummaryFromImage(){
+    // Heuristic mock: If we have OCR partial text, summarize; otherwise produce generic summary
+    if (lastOCR && lastOCR.length >= 30) {
+      // simple summarization: take first 3 lines or 300 chars
+      const lines = lastOCR.split('\n').map(l => l.trim()).filter(Boolean);
+      if (lines.length >= 3) {
+        return `Summary:\n- ${lines.slice(0,3).join('\n- ')}\n\n(Full OCR below)`;
+      }
+      return 'Summary:\n' + lastOCR.slice(0, Math.min(300, lastOCR.length));
+    }
+
+    // If no OCR available, create a visual-summary placeholder that user can rely on:
+    const placeholder = [
+      'Smart Summary (simulated):',
+      '- Document likely contains headings and short paragraphs.',
+      '- High-contrast scan detected; main blocks of text probable.',
+      '- If this is an invoice/receipt, key values (total, date) should be near top or bottom.',
+      '',
+      'Tip: Run "OCR" for actual text extraction. This summary is a quick fallback.'
+    ].join('\n');
+    return placeholder;
+  }
+
+  /* Copy text to clipboard */
+  async function copyText(){
+    const txt = ocrText.value || '';
+    try {
+      await navigator.clipboard.writeText(txt);
+      logStatus('Text copied to clipboard');
+    } catch (err) {
+      console.warn('Clipboard failed', err);
+      logStatus('Copy failed — try selecting text manually');
+    }
+  }
+
+  /* Download as PDF using jsPDF */
+  function downloadPDF(){
+    if (!processedCanvas && !currentImage) {
+      logStatus('No image to export');
+      return;
+    }
+    logStatus('Preparing PDF...');
+    // use jsPDF from window.jspdf
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({
+      unit: 'pt',
+      format: 'a4'
+    });
+    // target page size in px (points): use doc.internal.pageSize
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+
+    // Draw image at fit-to-page with margins
+    const margin = 20;
+    const availableW = pageWidth - margin*2;
+    const availableH = pageHeight - margin*2;
+
+    // get image data
+    const img = processedCanvas ? processedCanvas.toDataURL('image/jpeg', 0.95) : currentImage.src;
+    // create img element to measure
+    const tmp = new Image();
+    tmp.onload = () => {
+      let iw = tmp.naturalWidth;
+      let ih = tmp.naturalHeight;
+      const ratio = Math.min(availableW / iw, availableH / ih);
+      const dw = iw * ratio;
+      const dh = ih * ratio;
+      const x = (pageWidth - dw) / 2;
+      const y = margin + 10;
+      doc.addImage(img, 'JPEG', x, y, dw, dh, undefined, 'FAST');
+      // add OCR text below image if present
+      const text = ocrText.value || '';
+      if (text && text.trim().length) {
+        const split = doc.splitTextToSize(text, pageWidth - margin*2);
+        doc.setFontSize(10);
+        doc.setTextColor(20,20,20);
+        doc.addPage();
+        doc.text(split, margin, 40);
+      }
+      doc.save('OpenScan-AI-scan.pdf');
+      logStatus('PDF saved');
+    };
+    tmp.onerror = () => {
+      logStatus('Failed to prepare image for PDF');
+    };
+    tmp.src = img;
+  }
+
+  /* Wire up events */
+  snapBtn.addEventListener('click', snapFromVideo);
+  uploadInput.addEventListener('change', (ev) => {
+    const f = ev.target.files && ev.target.files[0];
+    if (f) {
+      loadImageFromFile(f);
+    }
+    // reset for re-uploading same file
+    ev.target.value = '';
+  });
+  processBtn.addEventListener('click', () => {
+    processImage();
+  });
+  ocrBtn.addEventListener('click', async () => {
+    await runOCR({ timeoutSeconds: 14 });
+  });
+  copyTextBtn.addEventListener('click', copyText);
+  downloadPdfBtn.addEventListener('click', downloadPDF);
+  smartBtn.addEventListener('click', smartAnalysis);
+  flipBtn.addEventListener('click', async () => {
+    await toggleCamera();
+  });
+
+  // allow pressing Enter in OCR textarea to quickly copy
+  ocrText.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+      copyText();
+    }
+  });
+
+  // Onload: init camera and try to pre-load tesseract (but lazily)
+  (async function startup(){
+    await initCamera();
+    // preload Tesseract in background (non-blocking)
+    initTesseract().catch(()=>{ /* ignore */ });
+    // make UI accessible even if camera blocked
+    if (!video.srcObject) {
+      fallbackUploadNotice.style.display = 'flex';
+    }
+  })();
+
+  // Expose minor troubleshooting functions to window for advanced users (dev)
+  window.OpenScanAI = {
+    snap: snapFromVideo,
+    process: processImage,
+    ocr: () => runOCR({ timeoutSeconds: 14 }),
+    smart: smartAnalysis,
+    toggleCamera,
+  };
+
+  // Accessibility: indicate tesseract load attempt
+  tessStatus.textContent = 'loading...';
+})();
+</script>
+</body>
+</html>
