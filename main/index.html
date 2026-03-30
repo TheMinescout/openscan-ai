@@ -1,3 +1,47 @@
+<!--
+======================================================================
+☁️ CLOUDFLARE WORKER DEPLOYMENT INSTRUCTIONS (For the AI Backend)
+======================================================================
+1. Go to your Cloudflare Dashboard -> Workers & Pages -> Create Worker.
+2. Name it "openscan-ai-worker" and deploy it.
+3. Click "Edit Code" and paste the exact code below.
+4. Go to Settings -> Variables & Secrets -> Add a Binding:
+   - Variable Name: AI
+   - Service: Workers AI
+5. Copy your worker URL (e.g., https://openscan.your-name.workers.dev)
+   and paste it into the Settings tab of this app!
+
+--- PASTE THIS INTO YOUR WORKER ---
+
+export default {
+  async fetch(request, env) {
+    const corsHeaders = {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
+    };
+
+    if (request.method === "OPTIONS") {
+      return new Response(null, { headers: corsHeaders });
+    }
+
+    if (request.method === "POST") {
+      try {
+        const body = await request.json();
+        // Run the Llama-3 model
+        const response = await env.AI.run('@cf/meta/llama-3-8b-instruct', body);
+        return new Response(JSON.stringify(response), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
+      } catch (error) {
+        return new Response(JSON.stringify({ error: error.message }), { status: 500, headers: corsHeaders });
+      }
+    }
+
+    return new Response("Openscan AI Worker is running!", { headers: corsHeaders });
+  }
+};
+======================================================================
+-->
+
 <!DOCTYPE html>
 <html lang="en" data-theme="light">
 <head>
@@ -16,37 +60,21 @@
 <script src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<!-- NEW: OCR and Markdown Parsing for AI Chat -->
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-
-<!-- Google Identity Services (For Drive Sync) -->
 <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()" async defer></script>
 
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    --bg: #ffffff;
-    --bg2: #fcfcfc;
-    --bg3: #f5f5f5;
-    --border: #eaeaeb;
-    --border2: #d4d4d0;
-    --text: #111111;
-    --text2: #6b6b67;
-    --text3: #9b9b97;
-    --accent: #000000;
-    --accent-bg: #f5f5f5;
-    --accent-hover: #333333;
-    --danger: #e5484d;
-    --danger-bg: #fff1f1;
-    --success: #30a46c;
-    --success-bg: #f0fdf4;
-    --warn: #e79d13;
-    
-    --sidebar-w: 240px;
-    --radius: 8px;
-    --radius-lg: 12px;
+    --bg: #ffffff; --bg2: #fcfcfc; --bg3: #f5f5f5;
+    --border: #eaeaeb; --border2: #d4d4d0;
+    --text: #111111; --text2: #6b6b67; --text3: #9b9b97;
+    --accent: #000000; --accent-bg: #f5f5f5; --accent-hover: #333333;
+    --danger: #e5484d; --danger-bg: #fff1f1;
+    --success: #30a46c; --success-bg: #f0fdf4; --warn: #e79d13;
+    --sidebar-w: 240px; --radius: 8px; --radius-lg: 12px;
     --shadow-sm: 0 1px 3px rgba(0,0,0,.06), 0 1px 2px rgba(0,0,0,.04);
     --shadow: 0 4px 12px rgba(0,0,0,.08), 0 2px 4px rgba(0,0,0,.04);
     --shadow-lg: 0 20px 40px rgba(0,0,0,.1), 0 8px 16px rgba(0,0,0,.06);
@@ -57,44 +85,16 @@
   }
 
   [data-theme="dark"] {
-    --bg: #111111;
-    --bg2: #161616;
-    --bg3: #222222;
-    --border: #2a2a2a;
-    --border2: #3a3a3a;
-    --text: #eeeeee;
-    --text2: #a0a0a0;
-    --text3: #707070;
-    --accent: #ffffff;
-    --accent-bg: #222222;
-    --accent-hover: #dddddd;
-    --danger: #ff5c5c;
-    --danger-bg: #3a1515;
-    --success: #4ade80;
-    --success-bg: #0f2d1a;
-    --shadow-sm: 0 1px 3px rgba(0,0,0,.3);
-    --shadow: 0 4px 12px rgba(0,0,0,.4);
-    --shadow-lg: 0 20px 40px rgba(0,0,0,.5);
+    --bg: #111111; --bg2: #161616; --bg3: #222222;
+    --border: #2a2a2a; --border2: #3a3a3a;
+    --text: #eeeeee; --text2: #a0a0a0; --text3: #707070;
+    --accent: #ffffff; --accent-bg: #222222; --accent-hover: #dddddd;
+    --danger: #ff5c5c; --danger-bg: #3a1515;
+    --success: #4ade80; --success-bg: #0f2d1a;
   }
 
-  html, body {
-    height: 100%;
-    overflow: hidden;
-    font-family: var(--font-sans);
-    background: var(--bg);
-    color: var(--text);
-    font-size: 14px;
-    line-height: 1.5;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-
-  #app {
-    display: flex;
-    height: 100vh;
-    height: 100dvh;
-    overflow: hidden;
-  }
+  html, body { height: 100%; overflow: hidden; font-family: var(--font-sans); background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased; }
+  #app { display: flex; height: 100vh; height: 100dvh; overflow: hidden; }
 
   /* ─── SIDEBAR ─────────────────────────────────── */
   .sidebar { width: var(--sidebar-w); background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; transition: transform var(--transition-slow), width var(--transition-slow); }
@@ -112,7 +112,7 @@
 
   /* ─── MAIN CONTENT ────────────────────────────── */
   .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
-  .topbar { height: 56px; border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 20px; gap: 12px; flex-shrink: 0; background: var(--bg); }
+  .topbar { height: 56px; border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 20px; gap: 12px; flex-shrink: 0; background: var(--bg); z-index: 10; }
   .topbar-title { font-size: 14px; font-weight: 600; color: var(--text); }
   .topbar-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
   .content-area { flex: 1; overflow: hidden; position: relative; display: flex; flex-direction: column; }
@@ -142,14 +142,19 @@
   .scan-corner.tr { top: -2px; right: -2px; border-top-width: 4px; border-right-width: 4px; border-radius: 0 4px 0 0; }
   .scan-corner.bl { bottom: -2px; left: -2px; border-bottom-width: 4px; border-left-width: 4px; border-radius: 0 0 0 4px; }
   .scan-corner.br { bottom: -2px; right: -2px; border-bottom-width: 4px; border-right-width: 4px; border-radius: 0 0 4px 0; }
+  
   .captured-anim { position: fixed; width: 100px; height: 130px; object-fit: cover; border-radius: var(--radius); border: 2px solid white; box-shadow: var(--shadow-lg); z-index: 1000; pointer-events: none; transition: all 0.7s cubic-bezier(0.68, -0.55, 0.265, 1.55); }
+  
   .auto-scan-pill { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.6); color: white; padding: 8px 18px; border-radius: 99px; font-size: 11px; font-weight: 600; letter-spacing: 1px; border: 1px solid rgba(255,255,255,0.2); cursor: pointer; backdrop-filter: blur(4px); z-index: 10; transition: all 0.2s ease; }
   .auto-scan-pill.active { background: var(--success); border-color: var(--success); box-shadow: 0 4px 12px rgba(48, 164, 108, 0.4); }
+  
   .scanner-controls { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 24px; z-index: 10; }
   .capture-btn { width: 72px; height: 72px; border-radius: 50%; background: rgba(255,255,255,0.2); border: 4px solid #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 150ms ease; backdrop-filter: blur(4px); }
   .capture-btn:active { transform: scale(0.92); }
   .capture-btn-inner { width: 54px; height: 54px; border-radius: 50%; background: #fff; }
-  .scanner-side-btn { width: 48px; height: 48px; border-radius: 50%; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.2); cursor: pointer; display: flex; align-items: center; justify-content: center; color: #fff; backdrop-filter: blur(8px); }
+  .scanner-side-btn { width: 48px; height: 48px; border-radius: 50%; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.2); cursor: pointer; display: flex; align-items: center; justify-content: center; color: #fff; backdrop-filter: blur(8px); transition: background 200ms ease; }
+  .scanner-side-btn.active { background: #fff; color: #000; }
+  
   .scanner-filter-bar { background: var(--bg); border-top: 1px solid var(--border); padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; z-index: 10; }
   .filter-row { display: flex; align-items: center; gap: 12px; }
   .filter-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text3); width: 60px; flex-shrink: 0; }
@@ -190,7 +195,7 @@
   .form-input { width: 100%; padding: 10px 12px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg2); color: var(--text); font-family: var(--font-sans); font-size: 13px; outline: none; }
   textarea.form-input { resize: vertical; min-height: 80px; line-height: 1.5; }
 
-  /* ─── ASK AI VIEW (NEW) ───────────────────────── */
+  /* ─── ASK AI VIEW ─────────────────────────────── */
   #view-ask { display: none; padding: 24px 32px 100px 32px; max-width: 900px; margin: 0 auto; height: 100%; overflow-y: hidden; width: 100%; flex-direction: column; }
   #view-ask.active { display: flex; }
   .chat-container { flex: 1; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg); overflow: hidden; }
@@ -217,9 +222,18 @@
   .settings-row-info { flex: 1; }
   .settings-row-label { font-size: 13px; font-weight: 500; color: var(--text); }
   .settings-row-desc { font-size: 12px; color: var(--text3); margin-top: 4px; line-height: 1.4; }
-  .key-input-wrap { position: relative; width: 100%; margin-top: 12px; }
-  .key-input { width: 100%; padding: 10px 38px 10px 12px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg2); color: var(--text); font-family: monospace; font-size: 12px; outline: none; }
-  .key-eye-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text3); padding: 4px; }
+
+  /* ─── EDITOR / CROP VIEW (NEW) ────────────────── */
+  .editor-modal { position: fixed; inset: 0; background: var(--bg); z-index: 2000; display: none; flex-direction: column; }
+  .editor-modal.active { display: flex; }
+  .editor-header { height: 56px; border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 20px; justify-content: space-between; background: var(--bg); }
+  .editor-workspace { flex: 1; background: var(--bg3); position: relative; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  .editor-canvas-wrap { position: relative; display: inline-block; box-shadow: var(--shadow-lg); }
+  #crop-image { display: block; max-width: 100%; max-height: calc(100vh - 120px); pointer-events: none; }
+  .crop-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
+  .crop-svg polygon { fill: rgba(35, 131, 226, 0.2); stroke: #2383e2; stroke-width: 2; }
+  .crop-handle { position: absolute; width: 30px; height: 30px; margin: -15px 0 0 -15px; background: #fff; border: 3px solid #2383e2; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.3); z-index: 10; cursor: pointer; touch-action: none; }
+  .crop-handle::after { content:''; position:absolute; inset:-15px; } /* larger touch target */
 
   /* ─── TOGGLE ─────────────────────────────────── */
   .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
@@ -277,26 +291,26 @@
       </div>
     </div>
     <nav class="sidebar-nav">
-      <button class="nav-item active" data-view="scanner" onclick="switchView('scanner')">
+      <button class="nav-item active" data-view="scanner" onclick="window.location.hash='scanner'">
         <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
         Scanner
       </button>
-      <button class="nav-item" data-view="library" id="nav-lib" onclick="switchView('library')">
+      <button class="nav-item" data-view="library" id="nav-lib" onclick="window.location.hash='library'">
         <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
         Library
         <span class="nav-badge" id="scan-count-badge" style="display:none">0</span>
       </button>
       <div class="nav-section-label">AI & Export</div>
-      <button class="nav-item" data-view="export" onclick="switchView('export')">
+      <button class="nav-item" data-view="export" onclick="window.location.hash='export'">
         <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/></svg>
         Export PDF
       </button>
-      <button class="nav-item" data-view="ask" onclick="switchView('ask')">
+      <button class="nav-item" data-view="ask" onclick="window.location.hash='ask'">
         <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
         Ask AI
       </button>
       <div class="nav-section-label">System</div>
-      <button class="nav-item" data-view="settings" onclick="switchView('settings')">
+      <button class="nav-item" data-view="settings" onclick="window.location.hash='settings'">
         <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         Settings
       </button>
@@ -304,7 +318,7 @@
     <div class="sidebar-footer">
       <div style="display:flex;align-items:center;gap:8px">
         <span class="status-dot gray" id="sync-dot" style="width:8px;height:8px;border-radius:50%;background:var(--border2);display:inline-block"></span>
-        <span style="font-size:12px;color:var(--text3)" id="sync-status-text">Not set up</span>
+        <span style="font-size:12px;color:var(--text3)" id="sync-status-text">Local only</span>
       </div>
     </div>
   </aside>
@@ -330,7 +344,7 @@
           </div>
           <button class="auto-scan-pill" id="auto-scan-toggle" onclick="toggleAutoScan()">AUTO: OFF</button>
           <div class="scanner-controls">
-            <button class="scanner-side-btn" onclick="toggleFlash()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></button>
+            <button class="scanner-side-btn" id="flash-btn" onclick="toggleFlash()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></button>
             <button class="capture-btn" onclick="capturePhoto()"><div class="capture-btn-inner"></div></button>
             <button class="scanner-side-btn" onclick="switchCamera()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/></svg></button>
           </div>
@@ -387,7 +401,7 @@
         </div>
       </div>
 
-      <!-- ════ ASK AI (NEW) ══════════════════════ -->
+      <!-- ════ ASK AI (Chat) ══════════════════════ -->
       <div id="view-ask">
         <div class="chat-container">
           <div class="chat-header">
@@ -412,23 +426,26 @@
       <!-- ════ SETTINGS ════════════════════════ -->
       <div id="view-settings">
         <div class="settings-header-text"><h2>Settings</h2><p>Configure keys and preferences.</p></div>
+        
         <div class="settings-card">
-          <div class="settings-card-header"><span class="settings-card-title">Cloudflare Workers AI (BYOK)</span></div>
+          <div class="settings-card-header"><span class="settings-card-title">Cloudflare Workers AI</span></div>
           <div class="settings-row" style="display:block">
-            <div class="settings-row-label">API Token</div>
-            <div class="key-input-wrap"><input class="key-input" type="password" id="cf-api-key" placeholder="Bearer Token" /><button class="key-eye-btn" onclick="toggleKeyVis('cf-api-key', this)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
-            <div class="key-input-wrap"><input class="key-input" type="text" id="cf-account-id" placeholder="Account ID" /></div>
-            <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="saveCfConfig()">Save AI Keys</button>
+            <div class="settings-row-label">Worker URL</div>
+            <div class="settings-row-desc">Paste your deployed Cloudflare Worker URL to unlock AI features.</div>
+            <div class="key-input-wrap"><input class="form-input" type="url" id="cf-worker-url" placeholder="https://your-worker.workers.dev" /></div>
+            <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="saveCfConfig()">Save AI Config</button>
           </div>
         </div>
+
         <div class="settings-card">
           <div class="settings-card-header"><span class="settings-card-title">Cloud Sync</span></div>
           <div class="settings-row" style="display:block">
             <div class="settings-row-label">Google Client ID</div>
-            <div class="key-input-wrap"><input class="key-input" type="text" id="gdrive-client-id" placeholder="....apps.googleusercontent.com" /></div>
+            <div class="key-input-wrap"><input class="form-input" type="text" id="gdrive-client-id" placeholder="....apps.googleusercontent.com" /></div>
             <button class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="connectGDrive()">Connect Drive</button>
           </div>
         </div>
+
         <div class="settings-card">
           <div class="settings-card-header"><span class="settings-card-title">Preferences</span></div>
           <div class="settings-row">
@@ -440,14 +457,16 @@
             <label class="toggle"><input type="checkbox" id="dark-mode-toggle" onchange="toggleTheme()"/><div class="toggle-track"></div></label>
           </div>
         </div>
+
         <div class="settings-card">
             <div class="settings-card-header"><span class="settings-card-title">Data</span></div>
             <div class="settings-row"><div class="settings-row-info" id="storage-used">Calculating...</div><button class="btn btn-secondary btn-sm" onclick="exportAllScans()">Export ZIP</button></div>
             <div class="settings-row"><button class="btn btn-danger btn-sm" onclick="confirmClearAll()">Delete All Data</button></div>
         </div>
+
         <div class="settings-card">
             <div class="settings-card-header"><span class="settings-card-title">About</span></div>
-            <div class="settings-row">Openscan AI V1.1.0 — <a href="https://github.com/TheMinescout/openscan-ai/" target="_blank">GitHub</a></div>
+            <div class="settings-row">Openscan AI V2.0.0 — <a href="https://github.com/TheMinescout/openscan-ai/" target="_blank">GitHub</a></div>
         </div>
       </div>
     </div>
@@ -456,11 +475,11 @@
 
 <nav class="mobile-nav">
   <div class="mobile-nav-inner">
-    <button class="mobile-nav-item active" id="mob-scanner" onclick="switchView('scanner')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Scanner</button>
-    <button class="mobile-nav-item" id="mob-library" onclick="switchView('library')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>Library</button>
-    <button class="mobile-nav-item" id="mob-export" onclick="switchView('export')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/></svg>Export</button>
-    <button class="mobile-nav-item" id="mob-ask" onclick="switchView('ask')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>Ask</button>
-    <button class="mobile-nav-item" id="mob-settings" onclick="switchView('settings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</button>
+    <button class="mobile-nav-item active" id="mob-scanner" onclick="window.location.hash='scanner'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Scanner</button>
+    <button class="mobile-nav-item" id="mob-library" onclick="window.location.hash='library'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>Library</button>
+    <button class="mobile-nav-item" id="mob-export" onclick="window.location.hash='export'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/></svg>Export</button>
+    <button class="mobile-nav-item" id="mob-ask" onclick="window.location.hash='ask'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>Ask</button>
+    <button class="mobile-nav-item" id="mob-settings" onclick="window.location.hash='settings'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</button>
   </div>
 </nav>
 
@@ -469,7 +488,8 @@
   <div class="selection-bar-actions">
     <button class="btn btn-ghost btn-sm" onclick="clearSelection()" style="color:white">Cancel</button>
     <button class="btn btn-danger btn-sm" onclick="deleteSelected()">Delete</button>
-    <button class="btn btn-primary btn-sm" style="background:white;color:black" onclick="exportSelected()">Export/Ask</button>
+    <button class="btn btn-secondary btn-sm" id="edit-selected-btn" style="display:none; color:black" onclick="openEditor()">Crop/Edit</button>
+    <button class="btn btn-primary btn-sm" style="background:white;color:black" onclick="window.location.hash='export'">Export</button>
   </div>
 </div>
 
@@ -481,11 +501,30 @@
   </div>
 </div>
 
+<!-- ─── EDITOR MODAL ─── -->
+<div class="editor-modal" id="editor-modal">
+  <div class="editor-header">
+    <button class="btn btn-ghost btn-sm" onclick="closeEditor()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg> Cancel</button>
+    <div style="font-weight:600;">Crop Document</div>
+    <button class="btn btn-primary btn-sm" onclick="applyCrop()">Apply</button>
+  </div>
+  <div class="editor-workspace" id="editor-workspace">
+    <div class="editor-canvas-wrap" id="editor-canvas-wrap">
+      <img id="crop-image" src="" alt="Crop Source"/>
+      <svg class="crop-svg"><polygon id="crop-polygon" points="0,0 10,0 10,10 0,10"/></svg>
+      <div class="crop-handle" id="h-tl"></div>
+      <div class="crop-handle" id="h-tr"></div>
+      <div class="crop-handle" id="h-br"></div>
+      <div class="crop-handle" id="h-bl"></div>
+    </div>
+  </div>
+</div>
+
 <div id="toast-container"></div>
 <canvas id="process-canvas" style="display:none"></canvas>
 
 <script>
-const state = { currentView: 'scanner', scans: [], selected: new Set(), chatHistory: [], filter: 'none', contrast: 100, stream: null, facingMode: 'environment', flashOn: false, autoScan: false, autoCrop: true };
+const state = { currentView: '', scans: [], selected: new Set(), chatHistory: [], filter: 'none', contrast: 100, stream: null, facingMode: 'environment', flashOn: false, autoScan: false, autoCrop: true };
 const db = localforage.createInstance({ name: 'openscan-ai', storeName: 'scans' });
 
 async function saveScans() { await db.setItem('scans', state.scans); updateBadge(); estimateStorage(); }
@@ -495,10 +534,29 @@ async function loadScans() {
   const savedChat = await db.getItem('chatHistory'); if (savedChat) { state.chatHistory = savedChat; app.renderChat(); }
 }
 
-function switchView(view) {
+// ─── HEX/HASH NAVIGATION ───
+window.addEventListener('hashchange', () => {
+    const hash = window.location.hash.replace('#', '') || 'scanner';
+    if (state.currentView !== hash) switchView(hash, true);
+});
+
+function switchView(view, fromHash = false) {
+  // Turn off flash if leaving scanner
+  if (view !== 'scanner' && state.flashOn && state.stream) {
+      const track = state.stream.getVideoTracks()[0];
+      if (track) { track.applyConstraints({ advanced: [{ torch: false }] }).catch(()=>{}); }
+      state.flashOn = false;
+      document.getElementById('flash-btn').classList.remove('active');
+  }
+
+  if (!fromHash) {
+      window.location.hash = view;
+      return; // hashchange event will fire and call this again with fromHash=true
+  }
+
   state.currentView = view;
   document.querySelectorAll('[id^="view-"]').forEach(v => v.classList.remove('active'));
-  document.getElementById('view-' + view).classList.add('active');
+  document.getElementById('view-' + view)?.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelector(`.nav-item[data-view="${view}"]`)?.classList.add('active');
   document.querySelectorAll('.mobile-nav-item').forEach(n => n.classList.remove('active'));
@@ -515,6 +573,7 @@ function switchView(view) {
   }
 }
 
+// ─── CAMERA & FILTERS ───
 async function startCamera() {
   const video = document.getElementById('camera-video');
   try {
@@ -526,7 +585,16 @@ async function startCamera() {
 }
 
 function switchCamera() { state.facingMode = state.facingMode === 'environment' ? 'user' : 'environment'; startCamera(); }
-function toggleFlash() { if (!state.stream) return; const track = state.stream.getVideoTracks()[0]; try { state.flashOn = !state.flashOn; track.applyConstraints({ advanced: [{ torch: state.flashOn }] }); showToast(state.flashOn ? 'Flash on' : 'Flash off'); } catch(e) { showToast('No flash support', 'warn'); } }
+function toggleFlash() { 
+  if (!state.stream) return; 
+  const track = state.stream.getVideoTracks()[0]; 
+  try { 
+    state.flashOn = !state.flashOn; 
+    track.applyConstraints({ advanced: [{ torch: state.flashOn }] }); 
+    const btn = document.getElementById('flash-btn');
+    if(state.flashOn) btn.classList.add('active'); else btn.classList.remove('active');
+  } catch(e) { showToast('No flash support', 'warn'); } 
+}
 function updateLiveVideoFilter() { const v = document.getElementById('camera-video'); if (!v) return; let f = ''; if (state.filter === 'grayscale') f = 'grayscale(1)'; else if (state.filter === 'bw') f = 'grayscale(1) contrast(2)'; else if (state.filter === 'enhance') f = 'saturate(1.5) contrast(1.2)'; if (state.contrast !== 100) f += ` contrast(${state.contrast}%)`; v.style.filter = f || 'none'; }
 function setFilter(f, btn) { state.filter = f; document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active')); btn.classList.add('active'); updateLiveVideoFilter(); }
 function updateContrast(val) { state.contrast = parseInt(val); document.getElementById('contrast-val').textContent = val; updateLiveVideoFilter(); }
@@ -558,11 +626,12 @@ function checkStability() {
   autoScanLastData = data;
 }
 
-// ─── CAPTURE & ANIMATION ───
+// ─── CAPTURE & AUTO-CROP ───
 function capturePhoto() {
-  const v = document.getElementById('camera-video'); if (!v.srcObject) return;
+  const v = document.getElementById('camera-video'); if (!v.srcObject || v.videoWidth === 0) return;
   const c = document.getElementById('capture-canvas'); const ctx = c.getContext('2d');
-  if (state.autoCrop) {
+  
+  if (state.autoCrop && document.getElementById('guide-toggle').checked) {
     const vp = document.getElementById('scanner-viewport'); const g = document.getElementById('scan-guide');
     const vR = v.videoWidth / v.videoHeight; const vpR = vp.clientWidth / vp.clientHeight;
     let rW, rH, oX = 0, oY = 0;
@@ -576,7 +645,7 @@ function capturePhoto() {
   } else { c.width = v.videoWidth; c.height = v.videoHeight; ctx.drawImage(v, 0, 0); }
   
   const data = applyFilterToCanvas(c);
-  state.scans.unshift({ id: Date.now().toString(), name: 'Scan ' + new Date().toLocaleTimeString(), date: new Date().toISOString(), dataUrl: data });
+  state.scans.unshift({ id: Date.now().toString(), name: 'Scan ' + new Date().toLocaleTimeString(), date: new Date().toISOString(), dataUrl: data, originalDataUrl: data });
   saveScans(); renderLibrary();
   triggerCaptureAnimation(data);
   showToast('Saved!', 'success');
@@ -608,6 +677,131 @@ function applyFilterToCanvas(source) {
   ctx.putImageData(id,0,0); return p.toDataURL('image/jpeg', 0.9);
 }
 
+// ─── CROP EDITOR (NEW) ───
+let cropPts = [];
+let draggingIdx = -1;
+
+function openEditor() {
+    if (state.selected.size !== 1) return;
+    const id = Array.from(state.selected)[0];
+    const scan = state.scans.find(s => s.id === id);
+    if (!scan) return;
+
+    const img = document.getElementById('crop-image');
+    img.src = scan.originalDataUrl || scan.dataUrl; // Fallback to dataUrl
+    document.getElementById('editor-modal').classList.add('active');
+
+    img.onload = () => {
+        const w = img.clientWidth;
+        const h = img.clientHeight;
+        // Default box 10% from edges
+        const m = Math.min(w, h) * 0.1;
+        cropPts = [
+            { x: m, y: m },
+            { x: w - m, y: m },
+            { x: w - m, y: h - m },
+            { x: m, y: h - m }
+        ];
+        drawCropUI();
+    };
+}
+
+function closeEditor() { document.getElementById('editor-modal').classList.remove('active'); }
+
+function drawCropUI() {
+    const poly = document.getElementById('crop-polygon');
+    poly.setAttribute('points', cropPts.map(p => `${p.x},${p.y}`).join(' '));
+    
+    ['tl', 'tr', 'br', 'bl'].forEach((pos, i) => {
+        const h = document.getElementById('h-' + pos);
+        h.style.left = cropPts[i].x + 'px';
+        h.style.top = cropPts[i].y + 'px';
+    });
+}
+
+function handleEditorMove(e) {
+    if (draggingIdx === -1) return;
+    e.preventDefault();
+    const wrap = document.getElementById('editor-canvas-wrap');
+    const rect = wrap.getBoundingClientRect();
+    const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+    const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+    
+    let x = clientX - rect.left;
+    let y = clientY - rect.top;
+    
+    // Constrain to image bounds
+    x = Math.max(0, Math.min(x, wrap.clientWidth));
+    y = Math.max(0, Math.min(y, wrap.clientHeight));
+
+    cropPts[draggingIdx] = { x, y };
+    drawCropUI();
+}
+
+const editorWrap = document.getElementById('editor-canvas-wrap');
+editorWrap.addEventListener('mousedown', startDrag);
+editorWrap.addEventListener('touchstart', startDrag, {passive: false});
+window.addEventListener('mousemove', handleEditorMove);
+window.addEventListener('touchmove', handleEditorMove, {passive: false});
+window.addEventListener('mouseup', () => draggingIdx = -1);
+window.addEventListener('touchend', () => draggingIdx = -1);
+
+function startDrag(e) {
+    if(e.target.classList.contains('crop-handle')) {
+        e.preventDefault();
+        const id = e.target.id;
+        draggingIdx = id === 'h-tl' ? 0 : id === 'h-tr' ? 1 : id === 'h-br' ? 2 : 3;
+    }
+}
+
+function applyCrop() {
+    if (state.selected.size !== 1) return;
+    const id = Array.from(state.selected)[0];
+    const scan = state.scans.find(s => s.id === id);
+    if (!scan) return;
+
+    const img = document.getElementById('crop-image');
+    
+    // Find bounding box of the polygon
+    const xs = cropPts.map(p => p.x);
+    const ys = cropPts.map(p => p.y);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xs);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ys);
+
+    const cropW = maxX - minX;
+    const cropH = maxY - minY;
+
+    // Scale back to natural image resolution
+    const scaleX = img.naturalWidth / img.clientWidth;
+    const scaleY = img.naturalHeight / img.clientHeight;
+
+    const sourceX = minX * scaleX;
+    const sourceY = minY * scaleY;
+    const sourceW = cropW * scaleX;
+    const sourceH = cropH * scaleY;
+
+    const canvas = document.getElementById('process-canvas');
+    canvas.width = sourceW;
+    canvas.height = sourceH;
+    const ctx = canvas.getContext('2d');
+    
+    // Draw cropped region
+    ctx.drawImage(img, sourceX, sourceY, sourceW, sourceH, 0, 0, sourceW, sourceH);
+    
+    // We update dataUrl, but keep originalDataUrl intact so they can edit again later
+    scan.dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+    // Clear OCR cache since image changed
+    scan.ocrText = null;
+
+    saveScans();
+    renderLibrary();
+    closeEditor();
+    showToast('Crop Applied!', 'success');
+}
+
+
 // ─── LIBRARY & SELECTION ───
 function renderLibrary(q='') {
   const g = document.getElementById('scans-grid'); const f = state.scans.filter(s => !q || s.name.toLowerCase().includes(q.toLowerCase()));
@@ -616,14 +810,25 @@ function renderLibrary(q='') {
 }
 function filterScans() { renderLibrary(document.getElementById('search-input').value); }
 function toggleSelect(id) { if (state.selected.has(id)) state.selected.delete(id); else state.selected.add(id); renderLibrary(); updateSelectionBar(); }
-function updateSelectionBar() { const bar = document.getElementById('selection-bar'); const count = state.selected.size; if (count > 0) { bar.classList.add('visible'); document.getElementById('selection-count').textContent = count + ' selected'; } else bar.classList.remove('visible'); }
+function updateSelectionBar() { 
+  const bar = document.getElementById('selection-bar'); 
+  const editBtn = document.getElementById('edit-selected-btn');
+  const count = state.selected.size; 
+  if (count > 0) { 
+      bar.classList.add('visible'); 
+      document.getElementById('selection-count').textContent = count + ' selected'; 
+      editBtn.style.display = count === 1 ? 'inline-flex' : 'none';
+  } else {
+      bar.classList.remove('visible'); 
+  }
+}
 function clearSelection() { state.selected.clear(); renderLibrary(); updateSelectionBar(); }
 function deleteSelected() {
   document.getElementById('confirm-title').textContent = 'Delete Scans?'; document.getElementById('confirm-subtitle').textContent = `Permanently delete ${state.selected.size} items?`;
   document.getElementById('confirm-ok-btn').onclick = async () => { state.scans = state.scans.filter(s => !state.selected.has(s.id)); state.selected.clear(); await saveScans(); renderLibrary(); updateSelectionBar(); closeModal('confirm-modal'); };
   openModal('confirm-modal');
 }
-function exportSelected() { if (state.selected.size > 0) switchView('export'); }
+function exportSelected() { if (state.selected.size > 0) window.location.hash = 'export'; }
 function updateBadge() { const b = document.getElementById('scan-count-badge'); b.textContent = state.scans.length; b.style.display = state.scans.length ? 'inline-block' : 'none'; }
 
 // ─── LOCAL OCR ENGINE (Tesseract.js) ───
@@ -663,10 +868,9 @@ const app = {
     const message = input.value.trim();
     if (!message) return;
     
-    const key = localStorage.getItem('cf-key');
-    const acc = localStorage.getItem('cf-acc');
-    if (!key || !acc) {
-      showToast('Please configure your Cloudflare AI Keys in Settings', 'warn');
+    const workerUrl = localStorage.getItem('cf-worker-url');
+    if (!workerUrl || !workerUrl.startsWith('http')) {
+      showToast('Please configure your Cloudflare Worker URL in Settings', 'warn');
       return;
     }
 
@@ -696,22 +900,20 @@ const app = {
         userPrompt = `Context Documents:\n${contextText}\n\nUser Question: ${message}`;
       }
 
-      // Convert history for API (excluding the last user message which we just added)
       const apiMessages = [ { role: 'system', content: systemPrompt } ];
-      // We take the last 6 messages to save context limits
       const recentHistory = state.chatHistory.slice(-6, -1);
       apiMessages.push(...recentHistory);
       apiMessages.push({ role: 'user', content: userPrompt });
 
-      const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${acc}/ai/run/@cf/meta/llama-3-8b-instruct`, { 
+      const res = await fetch(workerUrl, { 
         method: 'POST', 
-        headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' }, 
+        headers: { 'Content-Type': 'application/json' }, 
         body: JSON.stringify({ messages: apiMessages }) 
       });
 
-      if (!res.ok) throw new Error('API Error');
+      if (!res.ok) throw new Error('Worker Error');
       const data = await res.json();
-      const aiResponse = data.result.response.trim();
+      const aiResponse = data.response || data.result?.response || 'Could not parse response';
 
       state.chatHistory.push({ role: 'assistant', content: aiResponse });
       this.renderChat();
@@ -720,7 +922,6 @@ const app = {
     } catch (e) {
       showToast('Failed to get AI response.', 'error');
       console.error(e);
-      // Remove failed user message
       state.chatHistory.pop();
       this.renderChat();
     } finally {
@@ -740,20 +941,17 @@ const app = {
 async function generateLocalPDF() {
   const scans = state.selected.size ? state.scans.filter(s => state.selected.has(s.id)) : state.scans.slice(0, 5);
   if (!scans.length) return showToast('No scans selected', 'warn');
-  
-  // Directly just the images, no header or padding
   const html = `<div style="margin:0;padding:0;background:white;">${scans.map(s => `<img src="${s.dataUrl}" style="width:100%; display:block; margin: 0 auto; page-break-inside: avoid;"/>`).join('<div style="page-break-after:always;"></div>')}</div>`;
   renderPreview(html);
   showToast('Direct Document generated');
 }
 
 async function generateAIPDF() {
-  const key = localStorage.getItem('cf-key');
-  const acc = localStorage.getItem('cf-acc');
+  const workerUrl = localStorage.getItem('cf-worker-url');
   const selectedScans = state.selected.size > 0 ? state.scans.filter(s => state.selected.has(s.id)) : state.scans.slice(0, 3);
 
   if (selectedScans.length === 0) { showToast('No scans available', 'warn'); return; }
-  if (!key || !acc) { showToast('Add AI Keys in Settings', 'warn'); return; }
+  if (!workerUrl) { showToast('Add Worker URL in Settings', 'warn'); return; }
 
   const btn = document.getElementById('generate-btn');
   btn.textContent = 'Reading Images (OCR)...';
@@ -780,18 +978,18 @@ async function generateAIPDF() {
     Format the extracted text beautifully based on the instructions. Use placeholders {{IMAGES}} if you want to include the original scan images at the bottom.
     Output strictly HTML. No markdown wrappers.`;
 
-    const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${acc}/ai/run/@cf/meta/llama-3-8b-instruct`, { 
+    const res = await fetch(workerUrl, { 
       method: 'POST', 
-      headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' }, 
+      headers: { 'Content-Type': 'application/json' }, 
       body: JSON.stringify({ messages: [{ role: 'user', content: prompt }] }) 
     });
 
-    if (!res.ok) throw new Error('API call failed');
+    if (!res.ok) throw new Error('Worker call failed');
 
     const data = await res.json();
-    let html = data.result.response.replace(/```html?/gi, '').replace(/```/g, '').trim();
+    const rawRes = data.response || data.result?.response || '';
+    let html = rawRes.replace(/```html?/gi, '').replace(/```/g, '').trim();
     
-    // Inject images if requested by AI, or just append them if it forgot
     const imgs = selectedScans.map(s => `<img src="${s.dataUrl}" style="max-width:100%;margin-top:20px;box-shadow:0 2px 10px rgba(0,0,0,0.1);border-radius:8px"/>`).join('');
     if (html.includes('{{IMAGES}}')) {
       html = html.replace('{{IMAGES}}', imgs); 
@@ -803,7 +1001,7 @@ async function generateAIPDF() {
     showToast('AI Layout Ready!', 'success');
 
   } catch(e) { 
-    showToast('AI Error. Check Keys.', 'error'); 
+    showToast('AI Worker Error.', 'error'); 
     console.error(e); 
   } finally {
     btn.textContent = 'Generate AI Document';
@@ -830,10 +1028,12 @@ function connectGDrive() {
   localStorage.setItem('gdrive-client-id', id);
   google.accounts.oauth2.initTokenClient({ client_id: id, scope: 'https://www.googleapis.com/auth/drive.file', callback: (r) => { if(r.access_token) { localStorage.setItem('gdrive-token', r.access_token); updateSyncUI(); showToast('Drive Connected!', 'success'); } } }).requestAccessToken();
 }
-function saveCfConfig() { localStorage.setItem('cf-key', document.getElementById('cf-api-key').value); localStorage.setItem('cf-acc', document.getElementById('cf-account-id').value); showToast('AI Config Saved'); }
+function saveCfConfig() { 
+  localStorage.setItem('cf-worker-url', document.getElementById('cf-worker-url').value.trim()); 
+  showToast('Worker URL Saved', 'success'); 
+}
 function refreshSettings() {
-  document.getElementById('cf-api-key').value = localStorage.getItem('cf-key') || '';
-  document.getElementById('cf-account-id').value = localStorage.getItem('cf-acc') || '';
+  document.getElementById('cf-worker-url').value = localStorage.getItem('cf-worker-url') || '';
   document.getElementById('gdrive-client-id').value = localStorage.getItem('gdrive-client-id') || '';
   estimateStorage();
 }
@@ -849,7 +1049,6 @@ async function exportAllScans() {
 }
 function toggleAutoCrop() { state.autoCrop = document.getElementById('auto-crop-toggle').checked; }
 function toggleTheme() { const d = document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark'; document.documentElement.setAttribute('data-theme', d); localStorage.setItem('theme', d); }
-function toggleKeyVis(id, b) { const i = document.getElementById(id); i.type = i.type==='password'?'text':'password'; }
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 async function confirmClearAll() { document.getElementById('confirm-title').textContent = 'Clear All Data?'; document.getElementById('confirm-subtitle').textContent = 'Permanently delete all scans?'; document.getElementById('confirm-ok-btn').onclick = async () => { state.scans=[]; await db.clear(); renderLibrary(); updateBadge(); closeModal('confirm-modal'); showToast('Cleared'); }; openModal('confirm-modal'); }
@@ -857,7 +1056,10 @@ function showToast(m, t='') { const c = document.getElementById('toast-container
 
 window.onload = async () => {
   const saved = localStorage.getItem('theme'); if(saved) document.documentElement.setAttribute('data-theme', saved);
-  await loadScans(); startCamera();
+  await loadScans(); 
+  // Initial routing
+  const hash = window.location.hash.replace('#', '') || 'scanner';
+  switchView(hash, true);
 };
 </script>
 </body>
