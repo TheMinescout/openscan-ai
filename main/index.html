@@ -261,7 +261,7 @@
   input[type=range]::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--text); cursor: pointer; }
 
   /* ─── LIBRARY VIEW ────────────────────────────── */
-  #view-library { display: none; padding: 24px 32px; max-width: 1200px; margin: 0 auto; }
+  #view-library { display: none; padding: 24px 32px 80px 32px; max-width: 1200px; margin: 0 auto; }
   #view-library.active { display: block; }
   .library-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
   .search-box {
@@ -279,7 +279,7 @@
     position: relative;
   }
   .scan-card:hover { border-color: var(--border2); box-shadow: var(--shadow-sm); transform: translateY(-2px); }
-  .scan-card.selected { border-color: var(--text); box-shadow: 0 0 0 1px var(--text); }
+  .scan-card.selected { border-color: var(--text); box-shadow: 0 0 0 2px var(--text); }
   .scan-card-thumb { width: 100%; aspect-ratio: 3/4; object-fit: cover; display: block; background: var(--bg3); border-bottom: 1px solid var(--border); }
   .scan-card-info { padding: 12px; }
   .scan-card-name { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
@@ -293,7 +293,7 @@
   .scan-card.selected .scan-check { display: flex; }
 
   /* ─── EXPORT VIEW ─────────────────────────────── */
-  #view-export { display: none; padding: 24px 32px; max-width: 1200px; margin: 0 auto; }
+  #view-export { display: none; padding: 24px 32px 80px 32px; max-width: 1200px; margin: 0 auto; }
   #view-export.active { display: block; }
   .export-layout { display: grid; grid-template-columns: 1fr 340px; gap: 32px; align-items: start; }
   .export-preview {
@@ -318,8 +318,8 @@
   .form-input:focus { border-color: var(--text2); background: var(--bg); }
   textarea.form-input { resize: vertical; min-height: 80px; line-height: 1.5; }
 
-  /* ─── SETTINGS VIEW (RESTORED COMPLEX LAYOUT) ─── */
-  #view-settings { display: none; padding: 24px 32px; max-width: 720px; margin: 0 auto; }
+  /* ─── SETTINGS VIEW ───────────────────────────── */
+  #view-settings { display: none; padding: 24px 32px 80px 32px; max-width: 720px; margin: 0 auto; }
   #view-settings.active { display: block; }
   .settings-header-text { margin-bottom: 24px; }
   .settings-header-text h2 { font-family: var(--font-serif); font-size: 28px; font-weight: normal; color: var(--text); letter-spacing: -0.02em; }
@@ -390,16 +390,30 @@
   .mobile-nav-item.active { color: var(--text); }
   .mobile-nav-item svg { width: 20px; height: 20px; }
 
-  /* ─── RESPONSIVE (MOBILE FIXES) ──────────────── */
+  /* ─── SELECTION BAR ──────────────────────────── */
+  .selection-bar {
+    position: fixed; bottom: 0; left: var(--sidebar-w); right: 0;
+    background: var(--text); color: var(--bg); padding: 14px 24px;
+    display: none; align-items: center; gap: 12px; z-index: 150;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
+  }
+  .selection-bar.visible { display: flex; }
+  .selection-bar-count { font-size: 13.5px; font-weight: 600; }
+  .selection-bar-actions { margin-left: auto; display: flex; gap: 10px; }
+
+  /* ─── RESPONSIVE (MOBILE SCROLL FIXES) ───────── */
   @media (max-width: 768px) {
     .sidebar { display: none; }
     .mobile-nav { display: block; }
     #app { height: 100vh; height: 100dvh; }
-    .content-area { height: calc(100% - 64px - env(safe-area-inset-bottom)); padding-bottom: 0; }
-    #view-library, #view-export, #view-settings { padding: 16px; }
+    /* Fix to allow scrolling but prevent content hiding behind fixed navigation */
+    #view-scanner { height: calc(100% - 64px - env(safe-area-inset-bottom)); }
+    #view-library, #view-export, #view-settings { padding: 16px; padding-bottom: calc(90px + env(safe-area-inset-bottom)); }
     .scans-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
     .export-layout { grid-template-columns: 1fr; }
     .export-preview { min-height: 400px; }
+    /* Mobile Selection Bar */
+    .selection-bar { left: 0; bottom: calc(64px + env(safe-area-inset-bottom)); border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 12px 16px; }
   }
 
   /* ─── TOAST & MODALS ─────────────────────────── */
@@ -849,11 +863,21 @@
       Export
     </button>
     <button class="mobile-nav-item" id="mob-settings" onclick="switchView('settings')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
       Settings
     </button>
   </div>
 </nav>
+
+<!-- ═══ SELECTION BAR ──────────────────────────── -->
+<div class="selection-bar" id="selection-bar">
+  <span class="selection-bar-count" id="selection-count">0 selected</span>
+  <div class="selection-bar-actions">
+    <button class="btn btn-ghost btn-sm" style="color:var(--bg)" onclick="clearSelection()">Deselect</button>
+    <button class="btn btn-danger btn-sm" onclick="deleteSelected()">Delete</button>
+    <button class="btn btn-primary btn-sm" style="background:var(--bg);color:var(--text)" onclick="exportSelected()">Export</button>
+  </div>
+</div>
 
 <!-- ═══ CONFIRM MODAL ════════════════════════════════ -->
 <div class="modal-backdrop" id="confirm-modal" onclick="closeModal('confirm-modal')">
@@ -974,6 +998,52 @@ function switchView(view) {
   if (view === 'scanner' && !state.stream) startCamera();
   if (view === 'settings') refreshSettings();
 }
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// SELECTION BAR (NEW)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function updateSelectionBar() {
+  const bar = document.getElementById('selection-bar');
+  const count = state.selected.size;
+  if (count > 0) {
+    bar.classList.add('visible');
+    document.getElementById('selection-count').textContent = count + ' selected';
+  } else {
+    bar.classList.remove('visible');
+  }
+}
+
+function clearSelection() {
+  state.selected.clear();
+  renderLibrary();
+  updateSelectionBar();
+}
+
+function deleteSelected() {
+  if (state.selected.size === 0) return;
+  document.getElementById('confirm-title').textContent = 'Delete Scans?';
+  document.getElementById('confirm-subtitle').textContent = `Are you sure you want to delete ${state.selected.size} scan(s)?`;
+  
+  const okBtn = document.getElementById('confirm-ok-btn');
+  okBtn.textContent = 'Delete';
+  okBtn.onclick = async () => {
+    state.scans = state.scans.filter(s => !state.selected.has(s.id));
+    state.selected.clear();
+    await saveScans();
+    renderLibrary();
+    updateSelectionBar();
+    closeModal('confirm-modal');
+    showToast('Scans deleted', 'success');
+  };
+  
+  openModal('confirm-modal');
+}
+
+function exportSelected() {
+  if (state.selected.size === 0) return;
+  switchView('export');
+}
+
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // CAMERA & FILTERS
@@ -1262,6 +1332,7 @@ function toggleSelect(id) {
   if (state.selected.has(id)) state.selected.delete(id);
   else state.selected.add(id);
   renderLibrary();
+  updateSelectionBar(); // NEW
 }
 
 function updateBadge() {
@@ -1478,6 +1549,7 @@ function confirmClearAll() {
   document.getElementById('confirm-subtitle').textContent = `This will permanently delete all ${state.scans.length} scans from your device.`;
   
   const okBtn = document.getElementById('confirm-ok-btn');
+  okBtn.textContent = 'Delete All';
   okBtn.onclick = async () => {
     state.scans = [];
     state.selected.clear();
