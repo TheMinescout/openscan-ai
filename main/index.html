@@ -43,7 +43,7 @@ export default {
 -->
 
 <!DOCTYPE html>
-<html lang="en" data-theme="light">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
@@ -223,7 +223,7 @@ export default {
   .settings-row-label { font-size: 13px; font-weight: 500; color: var(--text); }
   .settings-row-desc { font-size: 12px; color: var(--text3); margin-top: 4px; line-height: 1.4; }
 
-  /* ─── EDITOR / CROP VIEW (NEW) ────────────────── */
+  /* ─── EDITOR / CROP VIEW ────────────────── */
   .editor-modal { position: fixed; inset: 0; background: var(--bg); z-index: 2000; display: none; flex-direction: column; }
   .editor-modal.active { display: flex; }
   .editor-header { height: 56px; border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 20px; justify-content: space-between; background: var(--bg); }
@@ -232,8 +232,8 @@ export default {
   #crop-image { display: block; max-width: 100%; max-height: calc(100vh - 120px); pointer-events: none; }
   .crop-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 5; }
   .crop-svg polygon { fill: rgba(35, 131, 226, 0.2); stroke: #2383e2; stroke-width: 2; }
-  .crop-handle { position: absolute; width: 30px; height: 30px; margin: -15px 0 0 -15px; background: #fff; border: 3px solid #2383e2; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.3); z-index: 10; cursor: pointer; touch-action: none; }
-  .crop-handle::after { content:''; position:absolute; inset:-15px; } /* larger touch target */
+  .crop-handle { position: absolute; width: 40px; height: 40px; margin: -20px 0 0 -20px; background: #fff; border: 3px solid #2383e2; border-radius: 50%; box-shadow: 0 2px 6px rgba(0,0,0,0.3); z-index: 10; cursor: pointer; touch-action: none; }
+  .crop-handle::after { content:''; position:absolute; inset:-20px; } /* larger touch target */
 
   /* ─── TOGGLE ─────────────────────────────────── */
   .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
@@ -453,6 +453,10 @@ export default {
             <label class="toggle"><input type="checkbox" id="auto-crop-toggle" checked onchange="toggleAutoCrop()"/><div class="toggle-track"></div></label>
           </div>
           <div class="settings-row">
+            <div class="settings-row-info"><div class="settings-row-label">Scan Guide Overlay</div></div>
+            <label class="toggle"><input type="checkbox" id="guide-toggle" checked onchange="toggleGuide()"/><div class="toggle-track"></div></label>
+          </div>
+          <div class="settings-row">
             <div class="settings-row-info"><div class="settings-row-label">Dark Mode</div></div>
             <label class="toggle"><input type="checkbox" id="dark-mode-toggle" onchange="toggleTheme()"/><div class="toggle-track"></div></label>
           </div>
@@ -580,6 +584,7 @@ async function startCamera() {
     if (state.stream) state.stream.getTracks().forEach(t => t.stop());
     state.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: state.facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
     video.srcObject = state.stream;
+    await video.play().catch(e => console.warn("Auto-play blocked", e));
     updateLiveVideoFilter();
   } catch(err) { showToast('Camera denied.', 'error'); }
 }
@@ -628,10 +633,14 @@ function checkStability() {
 
 // ─── CAPTURE & AUTO-CROP ───
 function capturePhoto() {
-  const v = document.getElementById('camera-video'); if (!v.srcObject || v.videoWidth === 0) return;
+  const v = document.getElementById('camera-video'); 
+  if (!v.srcObject) { showToast('Camera not connected.', 'error'); return; }
+  if (v.videoWidth === 0) { showToast('Camera initializing...', 'warn'); return; }
+  
   const c = document.getElementById('capture-canvas'); const ctx = c.getContext('2d');
   
-  if (state.autoCrop && document.getElementById('guide-toggle').checked) {
+  const guideToggle = document.getElementById('guide-toggle');
+  if (state.autoCrop && guideToggle && guideToggle.checked) {
     const vp = document.getElementById('scanner-viewport'); const g = document.getElementById('scan-guide');
     const vR = v.videoWidth / v.videoHeight; const vpR = vp.clientWidth / vp.clientHeight;
     let rW, rH, oX = 0, oY = 0;
@@ -1047,15 +1056,36 @@ async function exportAllScans() {
   const content = await zip.generateAsync({type:"blob"}); const url = URL.createObjectURL(content);
   const a = document.createElement('a'); a.href = url; a.download = 'Openscan_Backup.zip'; a.click();
 }
-function toggleAutoCrop() { state.autoCrop = document.getElementById('auto-crop-toggle').checked; }
+function toggleAutoCrop() { 
+  state.autoCrop = document.getElementById('auto-crop-toggle').checked; 
+  if (state.autoCrop) {
+    const guideToggle = document.getElementById('guide-toggle');
+    if (guideToggle) {
+      guideToggle.checked = true;
+      toggleGuide();
+    }
+  }
+}
+function toggleGuide() {
+  const guideToggle = document.getElementById('guide-toggle');
+  const scanGuide = document.getElementById('scan-guide');
+  if (guideToggle && scanGuide) {
+    scanGuide.style.display = guideToggle.checked ? 'block' : 'none';
+  }
+}
 function toggleTheme() { const d = document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark'; document.documentElement.setAttribute('data-theme', d); localStorage.setItem('theme', d); }
+function toggleKeyVis(id, b) { const i = document.getElementById(id); i.type = i.type==='password'?'text':'password'; }
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
 async function confirmClearAll() { document.getElementById('confirm-title').textContent = 'Clear All Data?'; document.getElementById('confirm-subtitle').textContent = 'Permanently delete all scans?'; document.getElementById('confirm-ok-btn').onclick = async () => { state.scans=[]; await db.clear(); renderLibrary(); updateBadge(); closeModal('confirm-modal'); showToast('Cleared'); }; openModal('confirm-modal'); }
 function showToast(m, t='') { const c = document.getElementById('toast-container'); const e = document.createElement('div'); e.className = 'toast'; e.textContent = m; if(t==='success') e.style.background = 'var(--success)'; if(t==='error') e.style.background = 'var(--danger)'; c.appendChild(e); setTimeout(() => e.remove(), 3000); }
 
 window.onload = async () => {
-  const saved = localStorage.getItem('theme'); if(saved) document.documentElement.setAttribute('data-theme', saved);
+  const saved = localStorage.getItem('theme') || 'dark'; 
+  document.documentElement.setAttribute('data-theme', saved);
+  const darkToggle = document.getElementById('dark-mode-toggle');
+  if (darkToggle) darkToggle.checked = saved === 'dark';
+
   await loadScans(); 
   // Initial routing
   const hash = window.location.hash.replace('#', '') || 'scanner';
