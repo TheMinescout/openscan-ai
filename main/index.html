@@ -298,13 +298,14 @@
     border: 1.5px solid rgba(255,255,255,0.4);
     border-radius: 8px;
     box-shadow: 0 0 0 9999px rgba(0,0,0,0.4);
+    transition: border-color 0.2s ease;
   }
 
   .scan-corner {
     position: absolute;
     width: 20px;
     height: 20px;
-    border-color: #fff;
+    border-color: inherit;
     border-style: solid;
     border-width: 0;
   }
@@ -312,6 +313,31 @@
   .scan-corner.tr { top: -2px; right: -2px; border-top-width: 3px; border-right-width: 3px; border-radius: 0 4px 0 0; }
   .scan-corner.bl { bottom: -2px; left: -2px; border-bottom-width: 3px; border-left-width: 3px; border-radius: 0 0 0 4px; }
   .scan-corner.br { bottom: -2px; right: -2px; border-bottom-width: 3px; border-right-width: 3px; border-radius: 0 0 4px 0; }
+
+  .auto-scan-pill {
+    position: absolute;
+    bottom: 120px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0,0,0,0.6);
+    color: white;
+    padding: 8px 18px;
+    border-radius: 99px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    border: 1px solid rgba(255,255,255,0.2);
+    cursor: pointer;
+    backdrop-filter: blur(4px);
+    z-index: 10;
+    transition: all 0.2s ease;
+  }
+  
+  .auto-scan-pill.active {
+    background: var(--success);
+    border-color: var(--success);
+    box-shadow: 0 4px 12px rgba(48, 164, 108, 0.4);
+  }
 
   .scanner-controls {
     position: absolute;
@@ -782,6 +808,11 @@
               <div class="scan-corner br"></div>
             </div>
           </div>
+          
+          <!-- Auto-Scan Toggle Button -->
+          <button class="auto-scan-pill" id="auto-scan-toggle" onclick="toggleAutoScan()">
+            AUTO: OFF
+          </button>
 
           <div class="scanner-controls" id="scanner-controls">
             <button class="scanner-side-btn" onclick="toggleFlash()" title="Flash">
@@ -978,6 +1009,7 @@ const state = {
   stream: null,
   facingMode: 'environment',
   flashOn: false,
+  autoScan: false // NEW
 };
 
 const db = localforage.createInstance({ name: 'openscan-ai', storeName: 'scans' });
@@ -1054,7 +1086,6 @@ function toggleFlash() {
   } catch(e) { showToast('Flash not supported', 'warn'); }
 }
 
-// FIX: Live On-Screen Video Filtering
 function updateLiveVideoFilter() {
   const video = document.getElementById('camera-video');
   if (!video) return;
@@ -1082,12 +1113,103 @@ function updateContrast(val) {
   updateLiveVideoFilter();
 }
 
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// AUTOSCAN (Motion-Stability Engine)
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+let autoScanInterval = null;
+let autoScanLastData = null;
+let stableCount = 0;
+let autoScanPaused = false;
+
+function toggleAutoScan() {
+  state.autoScan = !state.autoScan;
+  const btn = document.getElementById('auto-scan-toggle');
+  
+  if (state.autoScan) {
+    btn.textContent = 'AUTO: ON';
+    btn.classList.add('active');
+    startAutoScanLoop();
+    showToast('Hold still to auto-capture', 'success');
+  } else {
+    btn.textContent = 'AUTO: OFF';
+    btn.classList.remove('active');
+    stopAutoScanLoop();
+  }
+}
+
+function startAutoScanLoop() {
+  if (autoScanInterval) clearInterval(autoScanInterval);
+  stableCount = 0;
+  autoScanPaused = false;
+  autoScanInterval = setInterval(checkStability, 250);
+}
+
+function stopAutoScanLoop() {
+  if (autoScanInterval) clearInterval(autoScanInterval);
+  autoScanInterval = null;
+  document.getElementById('scan-guide').style.borderColor = 'rgba(255,255,255,0.4)';
+}
+
+function checkStability() {
+  if (!state.stream || autoScanPaused || state.currentView !== 'scanner') return;
+
+  const video = document.getElementById('camera-video');
+  if (video.videoWidth === 0) return;
+
+  // Render a tiny 64x64 frame to check for pixel movement
+  const canvas = document.createElement('canvas');
+  canvas.width = 64;
+  canvas.height = 64;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  ctx.drawImage(video, 0, 0, 64, 64);
+  const currentData = ctx.getImageData(0, 0, 64, 64).data;
+
+  if (autoScanLastData) {
+    let diff = 0;
+    for (let i = 0; i < currentData.length; i += 4) {
+      diff += Math.abs(currentData[i] - autoScanLastData[i]); // R
+      diff += Math.abs(currentData[i+1] - autoScanLastData[i+1]); // G
+      diff += Math.abs(currentData[i+2] - autoScanLastData[i+2]); // B
+    }
+    
+    // Calculate average pixel difference 
+    const avgDiff = diff / (64 * 64 * 3);
+
+    // If camera is holding very still (threshold < 8)
+    if (avgDiff < 8) { 
+      stableCount++;
+      // Give visual feedback by turning guide green
+      document.getElementById('scan-guide').style.borderColor = 'var(--success)';
+      
+      // If still for ~1.25 seconds (5 intervals)
+      if (stableCount >= 5) { 
+        autoScanPaused = true;
+        capturePhoto();
+        
+        // Pause autoscan for 3 seconds so we don't spam duplicate photos
+        document.getElementById('scan-guide').style.borderColor = 'rgba(255,255,255,0.4)';
+        setTimeout(() => {
+          stableCount = 0;
+          autoScanLastData = null;
+          autoScanPaused = false;
+        }, 3000); 
+        return;
+      }
+    } else {
+      // Movement detected, reset counter
+      stableCount = 0;
+      document.getElementById('scan-guide').style.borderColor = 'rgba(255,255,255,0.4)';
+    }
+  }
+  autoScanLastData = currentData;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// CAPTURE
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function capturePhoto() {
   const video = document.getElementById('camera-video');
   if (!video.srcObject) return;
-
-  // NOTE: Manual Capture is standard for Web SPAs. 
-  // True "autoscan" requires heavy libraries like OpenCV.js which lag on mobile browsers.
   
   const canvas = document.getElementById('capture-canvas');
   canvas.width = video.videoWidth || 1280;
@@ -1110,14 +1232,19 @@ function capturePhoto() {
   // Flash effect
   document.getElementById('scanner-viewport').style.background = '#fff';
   setTimeout(() => document.getElementById('scanner-viewport').style.background = '#000', 100);
-  showToast('Scan saved!');
+  
+  if(state.autoScan) {
+    showToast('Auto-Captured!', 'success');
+  } else {
+    showToast('Scan saved!');
+  }
 }
 
 function applyFilterToCanvas(sourceCanvas) {
   const proc = document.getElementById('process-canvas');
   proc.width = sourceCanvas.width;
   proc.height = sourceCanvas.height;
-  const ctx = proc.getContext('2d');
+  const ctx = proc.getContext('2d', { willReadFrequently: true });
   ctx.drawImage(sourceCanvas, 0, 0);
 
   if (state.filter === 'none' && state.contrast === 100) return proc.toDataURL('image/jpeg', 0.92);
