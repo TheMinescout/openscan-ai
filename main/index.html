@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no" />
 <title>Openscan AI</title>
-<meta name="description" content="Free open-source document scanner with AI PDF generation" />
+<meta name="description" content="Free open-source document scanner with AI Chat and OCR" />
 <meta name="theme-color" content="#ffffff" />
 
 <!-- Google Fonts for Notion/Linear feel -->
@@ -16,6 +16,9 @@
 <script src="https://cdn.jsdelivr.net/npm/localforage@1.10.0/dist/localforage.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2pdf.js@0.10.1/dist/html2pdf.bundle.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<!-- NEW: OCR and Markdown Parsing for AI Chat -->
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
 <!-- Google Identity Services (For Drive Sync) -->
 <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()" async defer></script>
@@ -94,444 +97,223 @@
   }
 
   /* ─── SIDEBAR ─────────────────────────────────── */
-  .sidebar {
-    width: var(--sidebar-w);
-    background: var(--bg2);
-    border-right: 1px solid var(--border);
-    display: flex;
-    flex-direction: column;
-    flex-shrink: 0;
-    overflow: hidden;
-    transition: transform var(--transition-slow), width var(--transition-slow);
-  }
-
+  .sidebar { width: var(--sidebar-w); background: var(--bg2); border-right: 1px solid var(--border); display: flex; flex-direction: column; flex-shrink: 0; overflow: hidden; transition: transform var(--transition-slow), width var(--transition-slow); }
   .sidebar-header { padding: 20px 16px 12px; }
-
-  .logo {
-    display: flex; align-items: center; gap: 8px;
-    font-weight: 600; font-size: 15px; color: var(--text); letter-spacing: -0.02em;
-  }
-
-  .logo-icon {
-    width: 24px; height: 24px; background: var(--text); border-radius: 6px;
-    display: flex; align-items: center; justify-content: center; color: var(--bg); flex-shrink: 0;
-  }
-
+  .logo { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 15px; color: var(--text); letter-spacing: -0.02em; }
+  .logo-icon { width: 24px; height: 24px; background: var(--text); border-radius: 6px; display: flex; align-items: center; justify-content: center; color: var(--bg); flex-shrink: 0; }
   .sidebar-nav { padding: 8px; flex: 1; overflow-y: auto; }
-
-  .nav-section-label {
-    font-size: 10px; font-weight: 600; letter-spacing: 0.08em;
-    text-transform: uppercase; color: var(--text3); padding: 16px 12px 6px;
-  }
-
-  .nav-item {
-    display: flex; align-items: center; gap: 10px; padding: 8px 12px;
-    border-radius: var(--radius); cursor: pointer; color: var(--text2);
-    font-size: 13px; font-weight: 500; transition: background var(--transition), color var(--transition);
-    user-select: none; width: 100%; background: none; border: none; text-align: left; margin-bottom: 2px;
-  }
-
+  .nav-section-label { font-size: 10px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text3); padding: 16px 12px 6px; }
+  .nav-item { display: flex; align-items: center; gap: 10px; padding: 8px 12px; border-radius: var(--radius); cursor: pointer; color: var(--text2); font-size: 13px; font-weight: 500; transition: background var(--transition), color var(--transition); user-select: none; width: 100%; background: none; border: none; text-align: left; margin-bottom: 2px; }
   .nav-item:hover { background: var(--bg3); color: var(--text); }
   .nav-item.active { background: var(--bg3); color: var(--text); }
   .nav-item-icon { width: 16px; height: 16px; flex-shrink: 0; }
-
-  .nav-badge {
-    margin-left: auto; background: var(--border); color: var(--text);
-    font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 99px;
-  }
-
+  .nav-badge { margin-left: auto; background: var(--border); color: var(--text); font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 99px; }
   .sidebar-footer { padding: 12px 16px; border-top: 1px solid var(--border); }
 
   /* ─── MAIN CONTENT ────────────────────────────── */
   .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
-
-  .topbar {
-    height: 56px; border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; padding: 0 20px; gap: 12px; flex-shrink: 0; background: var(--bg);
-  }
-
+  .topbar { height: 56px; border-bottom: 1px solid var(--border); display: flex; align-items: center; padding: 0 20px; gap: 12px; flex-shrink: 0; background: var(--bg); }
   .topbar-title { font-size: 14px; font-weight: 600; color: var(--text); }
   .topbar-actions { margin-left: auto; display: flex; gap: 8px; align-items: center; }
-
-  .content-area { flex: 1; overflow-y: auto; overflow-x: hidden; position: relative; }
+  .content-area { flex: 1; overflow: hidden; position: relative; display: flex; flex-direction: column; }
 
   /* ─── BUTTONS ─────────────────────────────────── */
-  .btn {
-    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
-    padding: 8px 14px; border-radius: var(--radius); font-size: 13px; font-weight: 500;
-    font-family: var(--font-sans); cursor: pointer; border: none;
-    transition: background var(--transition), opacity var(--transition), transform var(--transition);
-    white-space: nowrap; user-select: none;
-  }
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 8px 14px; border-radius: var(--radius); font-size: 13px; font-weight: 500; font-family: var(--font-sans); cursor: pointer; border: none; transition: background var(--transition), opacity var(--transition), transform var(--transition); white-space: nowrap; user-select: none; }
   .btn:active { transform: scale(0.97); }
   .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
   .btn-primary { background: var(--text); color: var(--bg); }
-  .btn-primary:hover:not(:disabled) { opacity: 0.85; }
   .btn-secondary { background: var(--bg); color: var(--text); border: 1px solid var(--border); }
-  .btn-secondary:hover:not(:disabled) { background: var(--bg3); }
   .btn-ghost { background: transparent; color: var(--text2); }
-  .btn-ghost:hover:not(:disabled) { background: var(--bg3); color: var(--text); }
   .btn-danger { background: var(--danger-bg); color: var(--danger); border: 1px solid transparent; }
-  .btn-danger:hover:not(:disabled) { background: var(--danger); color: #fff; }
   .btn-icon { padding: 8px; border-radius: var(--radius); }
   .btn-sm { padding: 6px 12px; font-size: 12px; }
 
   /* ─── SCANNER VIEW ────────────────────────────── */
-  #view-scanner { display: none; flex-direction: column; height: 100%; }
+  #view-scanner { display: none; flex-direction: column; height: 100%; overflow: hidden; }
   #view-scanner.active { display: flex; }
-
-  .scanner-viewport {
-    flex: 1; position: relative; background: #000; overflow: hidden;
-    display: flex; align-items: center; justify-content: center;
-  }
-
-  #camera-video {
-    width: 100%; height: 100%; object-fit: cover; display: block;
-    transition: filter 200ms ease;
-  }
-
+  .scanner-viewport { flex: 1; position: relative; background: #000; overflow: hidden; display: flex; align-items: center; justify-content: center; }
+  #camera-video { width: 100%; height: 100%; object-fit: cover; display: block; transition: filter 200ms ease; }
   .scanner-overlay { position: absolute; inset: 0; pointer-events: none; }
-
-  .scan-guide {
-    position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-    width: min(85%, 480px); aspect-ratio: 8.5/11;
-    border: 1.5px solid rgba(255,255,255,0.4); border-radius: 8px;
-    box-shadow: 0 0 0 9999px rgba(0,0,0,0.4); transition: border-color 0.2s ease;
-  }
-
-  .scan-corner { position: absolute; width: 20px; height: 20px; border-color: inherit; border-style: solid; border-width: 0; }
-  .scan-corner.tl { top: -2px; left: -2px; border-top-width: 3px; border-left-width: 3px; border-radius: 4px 0 0 0; }
-  .scan-corner.tr { top: -2px; right: -2px; border-top-width: 3px; border-right-width: 3px; border-radius: 0 4px 0 0; }
-  .scan-corner.bl { bottom: -2px; left: -2px; border-bottom-width: 3px; border-left-width: 3px; border-radius: 0 0 0 4px; }
-  .scan-corner.br { bottom: -2px; right: -2px; border-bottom-width: 3px; border-right-width: 3px; border-radius: 0 0 4px 0; }
-
-  .auto-scan-pill {
-    position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%);
-    background: rgba(0,0,0,0.6); color: white; padding: 8px 18px; border-radius: 99px;
-    font-size: 11px; font-weight: 600; letter-spacing: 1px; border: 1px solid rgba(255,255,255,0.2);
-    cursor: pointer; backdrop-filter: blur(4px); z-index: 10; transition: all 0.2s ease;
-  }
-  .auto-scan-pill.active {
-    background: var(--success); border-color: var(--success);
-    box-shadow: 0 4px 12px rgba(48, 164, 108, 0.4);
-  }
-
-  .scanner-controls {
-    position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
-    display: flex; align-items: center; gap: 24px; z-index: 10;
-  }
-
-  .capture-btn {
-    width: 72px; height: 72px; border-radius: 50%; background: rgba(255,255,255,0.2);
-    border: 4px solid #fff; cursor: pointer; display: flex; align-items: center;
-    justify-content: center; transition: transform 150ms ease; backdrop-filter: blur(4px);
-  }
+  .scan-guide { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: min(85%, 480px); aspect-ratio: 8.5/11; border: 2px solid rgba(255,255,255,0.4); border-radius: 8px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.5); transition: border-color 0.2s ease, transform 0.2s ease; }
+  .scan-guide.detecting { border-color: var(--success); border-width: 3px; transform: translate(-50%, -50%) scale(1.02); animation: pulse 1s infinite; }
+  @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.6; } 100% { opacity: 1; } }
+  .scan-corner { position: absolute; width: 24px; height: 24px; border-color: inherit; border-style: solid; border-width: 0; }
+  .scan-corner.tl { top: -2px; left: -2px; border-top-width: 4px; border-left-width: 4px; border-radius: 4px 0 0 0; }
+  .scan-corner.tr { top: -2px; right: -2px; border-top-width: 4px; border-right-width: 4px; border-radius: 0 4px 0 0; }
+  .scan-corner.bl { bottom: -2px; left: -2px; border-bottom-width: 4px; border-left-width: 4px; border-radius: 0 0 0 4px; }
+  .scan-corner.br { bottom: -2px; right: -2px; border-bottom-width: 4px; border-right-width: 4px; border-radius: 0 0 4px 0; }
+  .captured-anim { position: fixed; width: 100px; height: 130px; object-fit: cover; border-radius: var(--radius); border: 2px solid white; box-shadow: var(--shadow-lg); z-index: 1000; pointer-events: none; transition: all 0.7s cubic-bezier(0.68, -0.55, 0.265, 1.55); }
+  .auto-scan-pill { position: absolute; bottom: 120px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.6); color: white; padding: 8px 18px; border-radius: 99px; font-size: 11px; font-weight: 600; letter-spacing: 1px; border: 1px solid rgba(255,255,255,0.2); cursor: pointer; backdrop-filter: blur(4px); z-index: 10; transition: all 0.2s ease; }
+  .auto-scan-pill.active { background: var(--success); border-color: var(--success); box-shadow: 0 4px 12px rgba(48, 164, 108, 0.4); }
+  .scanner-controls { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; align-items: center; gap: 24px; z-index: 10; }
+  .capture-btn { width: 72px; height: 72px; border-radius: 50%; background: rgba(255,255,255,0.2); border: 4px solid #fff; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: transform 150ms ease; backdrop-filter: blur(4px); }
   .capture-btn:active { transform: scale(0.92); }
   .capture-btn-inner { width: 54px; height: 54px; border-radius: 50%; background: #fff; }
-
-  .scanner-side-btn {
-    width: 48px; height: 48px; border-radius: 50%; background: rgba(0,0,0,0.4);
-    border: 1px solid rgba(255,255,255,0.2); cursor: pointer; display: flex;
-    align-items: center; justify-content: center; color: #fff; backdrop-filter: blur(8px);
-    transition: background 200ms ease;
-  }
-  .scanner-side-btn:hover { background: rgba(0,0,0,0.6); }
-
-  .scanner-filter-bar {
-    background: var(--bg); border-top: 1px solid var(--border);
-    padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; z-index: 10;
-  }
-
+  .scanner-side-btn { width: 48px; height: 48px; border-radius: 50%; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.2); cursor: pointer; display: flex; align-items: center; justify-content: center; color: #fff; backdrop-filter: blur(8px); }
+  .scanner-filter-bar { background: var(--bg); border-top: 1px solid var(--border); padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; z-index: 10; }
   .filter-row { display: flex; align-items: center; gap: 12px; }
-  .filter-label {
-    font-size: 11px; font-weight: 600; text-transform: uppercase;
-    letter-spacing: 0.05em; color: var(--text3); width: 60px; flex-shrink: 0;
-  }
+  .filter-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text3); width: 60px; flex-shrink: 0; }
   .filter-chips { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; }
   .filter-chips::-webkit-scrollbar { display: none; }
-
-  .filter-chip {
-    padding: 6px 12px; border-radius: 99px; font-size: 12px; font-weight: 500;
-    cursor: pointer; border: 1px solid var(--border); background: var(--bg2);
-    color: var(--text2); transition: all var(--transition); white-space: nowrap;
-  }
+  .filter-chip { padding: 6px 12px; border-radius: 99px; font-size: 12px; font-weight: 500; cursor: pointer; border: 1px solid var(--border); background: var(--bg2); color: var(--text2); transition: all var(--transition); white-space: nowrap; }
   .filter-chip.active { background: var(--text); color: var(--bg); border-color: var(--text); }
-
   input[type=range] { flex: 1; height: 4px; background: var(--border); border-radius: 2px; appearance: none; outline: none; }
   input[type=range]::-webkit-slider-thumb { appearance: none; width: 16px; height: 16px; border-radius: 50%; background: var(--text); cursor: pointer; }
 
   /* ─── LIBRARY VIEW ────────────────────────────── */
-  #view-library { display: none; padding: 24px 32px 80px 32px; max-width: 1200px; margin: 0 auto; }
+  #view-library { display: none; padding: 24px 32px 100px 32px; max-width: 1200px; margin: 0 auto; height: 100%; overflow-y: auto; width: 100%; }
   #view-library.active { display: block; }
   .library-toolbar { display: flex; align-items: center; gap: 12px; margin-bottom: 24px; }
-  .search-box {
-    flex: 1; display: flex; align-items: center; gap: 10px; background: var(--bg2);
-    border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 14px; transition: border-color var(--transition);
-  }
-  .search-box:focus-within { border-color: var(--text2); }
+  .search-box { flex: 1; display: flex; align-items: center; gap: 10px; background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius); padding: 8px 14px; transition: border-color var(--transition); }
   .search-box input { flex: 1; background: none; border: none; outline: none; font-family: var(--font-sans); font-size: 13px; color: var(--text); }
-  .search-box input::placeholder { color: var(--text3); }
-
   .scans-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
-  .scan-card {
-    background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg);
-    overflow: hidden; cursor: pointer; transition: border-color var(--transition), box-shadow var(--transition), transform var(--transition);
-    position: relative;
-  }
-  .scan-card:hover { border-color: var(--border2); box-shadow: var(--shadow-sm); transform: translateY(-2px); }
+  .scan-card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; cursor: pointer; transition: all var(--transition); position: relative; }
+  .scan-card:hover { border-color: var(--border2); transform: translateY(-2px); }
   .scan-card.selected { border-color: var(--text); box-shadow: 0 0 0 2px var(--text); }
   .scan-card-thumb { width: 100%; aspect-ratio: 3/4; object-fit: cover; display: block; background: var(--bg3); border-bottom: 1px solid var(--border); }
   .scan-card-info { padding: 12px; }
   .scan-card-name { font-size: 13px; font-weight: 500; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 4px; }
   .scan-card-date { font-size: 11px; color: var(--text3); }
-
-  .scan-check {
-    position: absolute; top: 10px; right: 10px; width: 22px; height: 22px;
-    border-radius: 50%; background: var(--text); color: var(--bg); display: none;
-    align-items: center; justify-content: center;
-  }
+  .scan-check { position: absolute; top: 10px; right: 10px; width: 22px; height: 22px; border-radius: 50%; background: var(--text); color: var(--bg); display: none; align-items: center; justify-content: center; }
   .scan-card.selected .scan-check { display: flex; }
 
   /* ─── EXPORT VIEW ─────────────────────────────── */
-  #view-export { display: none; padding: 24px 32px 80px 32px; max-width: 1200px; margin: 0 auto; }
+  #view-export { display: none; padding: 24px 32px 100px 32px; max-width: 1200px; margin: 0 auto; height: 100%; overflow-y: auto; width: 100%; }
   #view-export.active { display: block; }
   .export-layout { display: grid; grid-template-columns: 1fr 340px; gap: 32px; align-items: start; }
-  .export-preview {
-    background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg);
-    overflow: hidden; min-height: 600px; display: flex; align-items: center; justify-content: center; position: relative;
-  }
+  .export-preview { background: var(--bg2); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; min-height: 500px; display: flex; align-items: center; justify-content: center; position: relative; }
   .panel { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
   .panel-section { padding: 20px; border-bottom: 1px solid var(--border); }
-  .panel-section:last-child { border-bottom: none; }
-  .panel-section-title {
-    font-size: 11px; font-weight: 600; text-transform: uppercase;
-    letter-spacing: 0.05em; color: var(--text3); margin-bottom: 16px;
-  }
+  .panel-section-title { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text3); margin-bottom: 16px; }
   .form-row { margin-bottom: 16px; }
-  .form-row:last-child { margin-bottom: 0; }
   .form-label { font-size: 12px; font-weight: 500; color: var(--text2); margin-bottom: 8px; display: block; }
-  .form-input {
-    width: 100%; padding: 10px 12px; border-radius: var(--radius); border: 1px solid var(--border);
-    background: var(--bg2); color: var(--text); font-family: var(--font-sans); font-size: 13px;
-    outline: none; transition: border-color var(--transition);
-  }
-  .form-input:focus { border-color: var(--text2); background: var(--bg); }
+  .form-input { width: 100%; padding: 10px 12px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg2); color: var(--text); font-family: var(--font-sans); font-size: 13px; outline: none; }
   textarea.form-input { resize: vertical; min-height: 80px; line-height: 1.5; }
 
+  /* ─── ASK AI VIEW (NEW) ───────────────────────── */
+  #view-ask { display: none; padding: 24px 32px 100px 32px; max-width: 900px; margin: 0 auto; height: 100%; overflow-y: hidden; width: 100%; flex-direction: column; }
+  #view-ask.active { display: flex; }
+  .chat-container { flex: 1; display: flex; flex-direction: column; border: 1px solid var(--border); border-radius: var(--radius-lg); background: var(--bg); overflow: hidden; }
+  .chat-header { padding: 16px 20px; border-bottom: 1px solid var(--border); background: var(--bg2); display: flex; align-items: center; justify-content: space-between; }
+  .chat-messages { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 16px; background: var(--bg3); }
+  .chat-input-area { padding: 16px 20px; background: var(--bg); border-top: 1px solid var(--border); }
+  .chat-msg { max-width: 85%; padding: 12px 16px; border-radius: 16px; font-size: 13.5px; line-height: 1.5; }
+  .chat-msg.user { align-self: flex-end; background: var(--text); color: var(--bg); border-bottom-right-radius: 4px; }
+  .chat-msg.assistant { align-self: flex-start; background: var(--bg); color: var(--text); border-bottom-left-radius: 4px; border: 1px solid var(--border); box-shadow: var(--shadow-sm); }
+  .markdown-body p { margin-bottom: 8px; }
+  .markdown-body p:last-child { margin-bottom: 0; }
+  .markdown-body ul { padding-left: 20px; margin-bottom: 8px; }
+  .markdown-body strong { font-weight: 600; }
+
   /* ─── SETTINGS VIEW ───────────────────────────── */
-  #view-settings { display: none; padding: 24px 32px 80px 32px; max-width: 720px; margin: 0 auto; }
+  #view-settings { display: none; padding: 24px 32px 100px 32px; max-width: 720px; margin: 0 auto; height: 100%; overflow-y: auto; width: 100%; }
   #view-settings.active { display: block; }
   .settings-header-text { margin-bottom: 24px; }
   .settings-header-text h2 { font-family: var(--font-serif); font-size: 28px; font-weight: normal; color: var(--text); letter-spacing: -0.02em; }
-  .settings-header-text p { font-size: 13px; color: var(--text2); margin-top: 4px; }
-
-  .settings-card {
-    background: var(--bg); border: 1px solid var(--border);
-    border-radius: var(--radius-lg); overflow: hidden; margin-bottom: 24px;
-  }
-  .settings-card-header {
-    padding: 16px 20px; border-bottom: 1px solid var(--border);
-    display: flex; align-items: center; gap: 10px; background: var(--bg2);
-  }
+  .settings-card { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; margin-bottom: 24px; }
+  .settings-card-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; gap: 10px; background: var(--bg2); }
   .settings-card-title { font-size: 13px; font-weight: 600; color: var(--text); }
-  .settings-card-subtitle { font-size: 11px; color: var(--text3); margin-left: auto; text-transform: uppercase; letter-spacing: 0.05em; font-weight: 600; }
-  
-  .settings-row {
-    padding: 16px 20px; display: flex; align-items: center; gap: 16px;
-    border-bottom: 1px solid var(--border);
-  }
-  .settings-row:last-child { border-bottom: none; }
+  .settings-row { padding: 16px 20px; display: flex; align-items: center; gap: 16px; border-bottom: 1px solid var(--border); }
   .settings-row-info { flex: 1; }
   .settings-row-label { font-size: 13px; font-weight: 500; color: var(--text); }
   .settings-row-desc { font-size: 12px; color: var(--text3); margin-top: 4px; line-height: 1.4; }
-
-  /* Settings Input Specialties */
   .key-input-wrap { position: relative; width: 100%; margin-top: 12px; }
-  .key-input {
-    width: 100%; padding: 10px 38px 10px 12px; border-radius: var(--radius);
-    border: 1px solid var(--border); background: var(--bg2); color: var(--text);
-    font-family: 'SFMono-Regular', 'Consolas', monospace; font-size: 12.5px;
-    outline: none; transition: border-color var(--transition);
-  }
-  .key-input:focus { border-color: var(--text2); background: var(--bg); }
-  .key-eye-btn {
-    position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
-    background: none; border: none; cursor: pointer; color: var(--text3); padding: 4px; display: flex;
-  }
-  .key-eye-btn:hover { color: var(--text); }
+  .key-input { width: 100%; padding: 10px 38px 10px 12px; border-radius: var(--radius); border: 1px solid var(--border); background: var(--bg2); color: var(--text); font-family: monospace; font-size: 12px; outline: none; }
+  .key-eye-btn { position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; color: var(--text3); padding: 4px; }
 
   /* ─── TOGGLE ─────────────────────────────────── */
   .toggle { position: relative; width: 36px; height: 20px; flex-shrink: 0; }
   .toggle input { opacity: 0; width: 0; height: 0; }
-  .toggle-track {
-    position: absolute; inset: 0; background: var(--border2);
-    border-radius: 99px; cursor: pointer; transition: background var(--transition);
-  }
-  .toggle-track::after {
-    content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
-    border-radius: 50%; background: #fff; box-shadow: var(--shadow-sm);
-    transition: transform var(--transition);
-  }
+  .toggle-track { position: absolute; inset: 0; background: var(--border2); border-radius: 99px; cursor: pointer; transition: background var(--transition); }
+  .toggle-track::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: var(--shadow-sm); transition: transform var(--transition); }
   .toggle input:checked + .toggle-track { background: var(--text); }
   .toggle input:checked + .toggle-track::after { transform: translateX(16px); }
 
   /* ─── MOBILE BOTTOM NAV ──────────────────────── */
-  .mobile-nav {
-    display: none; position: fixed; bottom: 0; left: 0; right: 0;
-    background: var(--bg); border-top: 1px solid var(--border);
-    padding: 8px 0 calc(8px + env(safe-area-inset-bottom)); z-index: 100;
-  }
+  .mobile-nav { display: none; position: fixed; bottom: 0; left: 0; right: 0; background: var(--bg); border-top: 1px solid var(--border); padding: 8px 0 calc(8px + env(safe-area-inset-bottom)); z-index: 100; }
   .mobile-nav-inner { display: flex; justify-content: space-around; align-items: center; }
-  .mobile-nav-item {
-    display: flex; flex-direction: column; align-items: center; gap: 4px;
-    padding: 4px 16px; cursor: pointer; background: none; border: none;
-    font-family: var(--font-sans); color: var(--text3); font-size: 10px; font-weight: 600;
-  }
+  .mobile-nav-item { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 4px 16px; cursor: pointer; background: none; border: none; font-family: var(--font-sans); color: var(--text3); font-size: 10px; font-weight: 600; }
   .mobile-nav-item.active { color: var(--text); }
   .mobile-nav-item svg { width: 20px; height: 20px; }
 
   /* ─── SELECTION BAR ──────────────────────────── */
-  .selection-bar {
-    position: fixed; bottom: 0; left: var(--sidebar-w); right: 0;
-    background: var(--text); color: var(--bg); padding: 14px 24px;
-    display: none; align-items: center; gap: 12px; z-index: 150;
-    box-shadow: 0 -4px 20px rgba(0,0,0,0.15);
-  }
+  .selection-bar { position: fixed; bottom: 0; left: var(--sidebar-w); right: 0; background: var(--text); color: var(--bg); padding: 14px 24px; display: none; align-items: center; gap: 12px; z-index: 150; box-shadow: 0 -4px 20px rgba(0,0,0,0.15); }
   .selection-bar.visible { display: flex; }
-  .selection-bar-count { font-size: 13.5px; font-weight: 600; }
   .selection-bar-actions { margin-left: auto; display: flex; gap: 10px; }
 
-  /* ─── RESPONSIVE (MOBILE SCROLL FIXES) ───────── */
   @media (max-width: 768px) {
     .sidebar { display: none; }
     .mobile-nav { display: block; }
     #app { height: 100vh; height: 100dvh; }
-    /* Fix to allow scrolling but prevent content hiding behind fixed navigation */
     #view-scanner { height: calc(100% - 64px - env(safe-area-inset-bottom)); }
-    #view-library, #view-export, #view-settings { padding: 16px; padding-bottom: calc(90px + env(safe-area-inset-bottom)); }
+    #view-library, #view-export, #view-settings, #view-ask { padding: 16px 16px 120px 16px; }
     .scans-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 12px; }
     .export-layout { grid-template-columns: 1fr; }
-    .export-preview { min-height: 400px; }
-    /* Mobile Selection Bar */
     .selection-bar { left: 0; bottom: calc(64px + env(safe-area-inset-bottom)); border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 12px 16px; }
   }
 
-  /* ─── TOAST & MODALS ─────────────────────────── */
-  .modal-backdrop {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none;
-    align-items: center; justify-content: center; z-index: 1000; padding: 20px;
-    backdrop-filter: blur(4px);
-  }
+  /* ─── MODALS & TOAST ─────────────────────────── */
+  .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: none; align-items: center; justify-content: center; z-index: 1000; padding: 20px; backdrop-filter: blur(4px); }
   .modal-backdrop.open { display: flex; }
-  .modal {
-    background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-lg); width: 100%; max-width: 420px; max-height: 90vh;
-    display: flex; flex-direction: column; animation: modal-in 200ms cubic-bezier(0.34,1.56,0.64,1);
-  }
-  @keyframes modal-in {
-    from { opacity: 0; transform: scale(0.96) translateY(10px); }
-    to { opacity: 1; transform: scale(1) translateY(0); }
-  }
+  .modal { background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-lg); box-shadow: var(--shadow-lg); width: 100%; max-width: 420px; max-height: 90vh; display: flex; flex-direction: column; animation: modal-in 200ms ease; }
   .modal-header { padding: 18px 20px 14px; border-bottom: 1px solid var(--border); }
-  .modal-title { font-size: 16px; font-weight: 600; color: var(--text); }
-  .modal-subtitle { font-size: 13px; color: var(--text2); margin-top: 4px; }
+  .modal-title { font-size: 16px; font-weight: 600; }
   .modal-body { padding: 20px; }
-  .modal-footer {
-    padding: 16px 20px; border-top: 1px solid var(--border);
-    display: flex; justify-content: flex-end; gap: 8px; background: var(--bg2); border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-  }
-  
-  #toast-container {
-    position: fixed; bottom: 24px; right: 24px; z-index: 2000;
-    display: flex; flex-direction: column; gap: 8px; pointer-events: none;
-  }
+  .modal-footer { padding: 16px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; background: var(--bg2); border-radius: 0 0 var(--radius-lg) var(--radius-lg); }
+  #toast-container { position: fixed; bottom: 24px; right: 24px; z-index: 2000; display: flex; flex-direction: column; gap: 8px; pointer-events: none; }
   @media (max-width: 768px) { #toast-container { bottom: 84px; right: 16px; left: 16px; } }
-
-  .toast {
-    background: var(--text); color: var(--bg); padding: 12px 16px;
-    border-radius: var(--radius); font-size: 13px; font-weight: 500;
-    box-shadow: var(--shadow-lg); display: flex; align-items: center; gap: 10px;
-    pointer-events: all; max-width: 320px; animation: toast-in 250ms ease;
-  }
-  @keyframes toast-in {
-    from { opacity: 0; transform: translateY(12px) scale(0.95); }
-    to { opacity: 1; transform: translateY(0) scale(1); }
-  }
+  .toast { background: var(--text); color: var(--bg); padding: 12px 16px; border-radius: var(--radius); font-size: 13px; font-weight: 500; box-shadow: var(--shadow-lg); display: flex; align-items: center; gap: 10px; pointer-events: all; }
+  @keyframes modal-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
 </style>
 </head>
 <body>
 
 <div id="app">
-  <!-- ═══ SIDEBAR (Desktop) ═══════════════════════ -->
-  <aside class="sidebar" id="sidebar">
+  <aside class="sidebar">
     <div class="sidebar-header">
       <div class="logo">
-        <div class="logo-icon">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
-            <polyline points="14,2 14,8 20,8"/>
-          </svg>
-        </div>
+        <div class="logo-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14,2 14,8 20,8"/></svg></div>
         Openscan
       </div>
     </div>
-
     <nav class="sidebar-nav">
       <button class="nav-item active" data-view="scanner" onclick="switchView('scanner')">
-        <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-          <circle cx="12" cy="13" r="4"/>
-        </svg>
+        <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
         Scanner
       </button>
-
-      <button class="nav-item" data-view="library" onclick="switchView('library')">
-        <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/>
-          <rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>
-        </svg>
+      <button class="nav-item" data-view="library" id="nav-lib" onclick="switchView('library')">
+        <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
         Library
         <span class="nav-badge" id="scan-count-badge" style="display:none">0</span>
       </button>
-
-      <div class="nav-section-label">Export</div>
+      <div class="nav-section-label">AI & Export</div>
       <button class="nav-item" data-view="export" onclick="switchView('export')">
-        <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/>
-        </svg>
-        AI PDF Generation
+        <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/></svg>
+        Export PDF
       </button>
-
+      <button class="nav-item" data-view="ask" onclick="switchView('ask')">
+        <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+        Ask AI
+      </button>
       <div class="nav-section-label">System</div>
       <button class="nav-item" data-view="settings" onclick="switchView('settings')">
-        <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-          <circle cx="12" cy="12" r="3"/>
-          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>
-        </svg>
+        <svg class="nav-item-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
         Settings
       </button>
     </nav>
     <div class="sidebar-footer">
       <div style="display:flex;align-items:center;gap:8px">
         <span class="status-dot gray" id="sync-dot" style="width:8px;height:8px;border-radius:50%;background:var(--border2);display:inline-block"></span>
-        <span style="font-size:12px;color:var(--text3)" id="sync-status-text">Local only</span>
+        <span style="font-size:12px;color:var(--text3)" id="sync-status-text">Not set up</span>
       </div>
     </div>
   </aside>
 
-  <!-- ═══ MAIN ═══════════════════════════════════ -->
   <div class="main">
     <div class="topbar">
       <span class="topbar-title" id="topbar-title">Scanner</span>
       <div class="topbar-actions">
-        <button class="btn btn-ghost btn-icon" onclick="toggleTheme()" title="Toggle theme">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/>
-            <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/>
-            <line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/>
-            <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-          </svg>
-        </button>
+        <button class="btn btn-ghost btn-icon" onclick="toggleTheme()"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg></button>
       </div>
     </div>
 
@@ -541,50 +323,29 @@
         <div class="scanner-viewport" id="scanner-viewport">
           <video id="camera-video" autoplay muted playsinline></video>
           <canvas id="capture-canvas" style="display:none"></canvas>
-
           <div class="scanner-overlay">
-            <div class="scan-guide" id="scan-guide" style="display:block;">
-              <div class="scan-corner tl"></div>
-              <div class="scan-corner tr"></div>
-              <div class="scan-corner bl"></div>
-              <div class="scan-corner br"></div>
+            <div class="scan-guide" id="scan-guide">
+              <div class="scan-corner tl"></div><div class="scan-corner tr"></div><div class="scan-corner bl"></div><div class="scan-corner br"></div>
             </div>
           </div>
-          
-          <!-- Auto-Scan Toggle Button -->
-          <button class="auto-scan-pill" id="auto-scan-toggle" onclick="toggleAutoScan()">
-            AUTO: OFF
-          </button>
-
-          <div class="scanner-controls" id="scanner-controls">
-            <button class="scanner-side-btn" onclick="toggleFlash()" title="Flash">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-              </svg>
-            </button>
-            <button class="capture-btn" onclick="capturePhoto()" id="capture-btn">
-              <div class="capture-btn-inner"></div>
-            </button>
-            <button class="scanner-side-btn" onclick="switchCamera()" title="Switch camera">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/><path d="M1 4v6h6"/><path d="M23 20v-6h-6"/>
-              </svg>
-            </button>
+          <button class="auto-scan-pill" id="auto-scan-toggle" onclick="toggleAutoScan()">AUTO: OFF</button>
+          <div class="scanner-controls">
+            <button class="scanner-side-btn" onclick="toggleFlash()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></button>
+            <button class="capture-btn" onclick="capturePhoto()"><div class="capture-btn-inner"></div></button>
+            <button class="scanner-side-btn" onclick="switchCamera()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.49 9A9 9 0 0 0 5.64 5.64L1 10m22 4-4.64 4.36A9 9 0 0 1 3.51 15"/></svg></button>
           </div>
         </div>
-
-        <!-- Filter bar -->
         <div class="scanner-filter-bar">
           <div class="filter-row">
             <span class="filter-label">Filter</span>
             <div class="filter-chips">
               <button class="filter-chip active" data-filter="none" onclick="setFilter('none',this)">Original</button>
               <button class="filter-chip" data-filter="grayscale" onclick="setFilter('grayscale',this)">Grayscale</button>
-              <button class="filter-chip" data-filter="bw" onclick="setFilter('bw',this)">Black & White</button>
+              <button class="filter-chip" data-filter="bw" onclick="setFilter('bw',this)">B&W</button>
               <button class="filter-chip" data-filter="enhance" onclick="setFilter('enhance',this)">Enhance</button>
             </div>
           </div>
-          <div class="filter-row" id="contrast-row">
+          <div class="filter-row">
             <span class="filter-label">Contrast</span>
             <input type="range" id="contrast-slider" min="50" max="200" value="100" oninput="updateContrast(this.value)" />
             <span style="font-size:11px;color:var(--text3);width:30px;text-align:right" id="contrast-val">100</span>
@@ -595,1003 +356,508 @@
       <!-- ════ LIBRARY ══════════════════════════ -->
       <div id="view-library">
         <div class="library-toolbar">
-          <div class="search-box">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input type="text" placeholder="Search your scans…" id="search-input" oninput="filterScans()" />
-          </div>
-          <label class="btn btn-secondary" style="cursor:pointer">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-            Import
-            <input type="file" accept="image/*" multiple style="display:none" onchange="importImages(event)" />
-          </label>
+          <div class="search-box"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg><input type="text" placeholder="Search..." oninput="filterScans()" id="search-input" /></div>
+          <label class="btn btn-secondary"><input type="file" accept="image/*" multiple style="display:none" onchange="importImages(event)" />Import</label>
         </div>
         <div class="scans-grid" id="scans-grid"></div>
-        
-        <div style="text-align:center;padding:80px 20px;display:none" id="empty-state">
-          <p style="color:var(--text3);font-size:14px">No scans yet. Start capturing!</p>
-        </div>
+        <div id="empty-state" style="text-align:center;padding:100px 20px;display:none;color:var(--text3)">No scans yet.</div>
       </div>
 
       <!-- ════ EXPORT ════════════════════════════ -->
       <div id="view-export">
         <div class="export-layout">
           <div>
-            <div class="export-preview" id="export-preview">
-              <div id="preview-placeholder" style="text-align:center;color:var(--text3)">
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin:0 auto 12px;display:block"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14,2 14,8 20,8"/></svg>
-                <p>Select scans to generate an AI PDF</p>
-              </div>
+            <div class="export-preview">
+              <div id="preview-placeholder">Select scans to generate PDF</div>
               <div id="preview-doc" style="display:none;width:100%;height:100%"></div>
             </div>
-            <div style="display:flex;gap:12px;margin-top:16px">
-              <button class="btn btn-primary" onclick="generateAIPDF()" id="generate-btn">Generate AI PDF</button>
-              <button class="btn btn-secondary" onclick="downloadPDF()" id="download-btn" disabled>Download</button>
+            <div style="display:flex;gap:12px;margin-top:16px;flex-wrap:wrap">
+              <button class="btn btn-secondary" onclick="generateLocalPDF()" id="local-pdf-btn">Direct Export (Images Only)</button>
+              <button class="btn btn-primary" onclick="generateAIPDF()" id="generate-btn">Generate AI Document</button>
+              <button class="btn btn-secondary" onclick="downloadPDF()" id="download-btn" disabled>Download File</button>
             </div>
           </div>
-
           <div class="panel">
             <div class="panel-section">
-              <div class="panel-section-title">Document Settings</div>
-              <div class="form-row">
-                <label class="form-label">Title</label>
-                <input class="form-input" type="text" id="doc-title" placeholder="Scanned Document" value="Scanned Document" />
-              </div>
-              <div class="form-row">
-                <label class="form-label">AI Instructions</label>
-                <textarea class="form-input" id="ai-instructions" placeholder="e.g. Create a clean two-column layout."></textarea>
-              </div>
+              <div class="panel-section-title">AI Layout Settings</div>
+              <div class="form-row"><label class="form-label">Title</label><input class="form-input" type="text" id="doc-title" value="Scanned Document" /></div>
+              <div class="form-row"><label class="form-label">Style Instructions</label><textarea class="form-input" id="ai-instructions" placeholder="e.g. Combine the text from these scans into a clean summary table. Extract any names and dates."></textarea></div>
             </div>
           </div>
         </div>
       </div>
 
-      <!-- ════ SETTINGS (Restored Complex Layout) ════ -->
+      <!-- ════ ASK AI (NEW) ══════════════════════ -->
+      <div id="view-ask">
+        <div class="chat-container">
+          <div class="chat-header">
+            <div style="font-weight:600; color:var(--text);">AI Scan Assistant</div>
+            <button class="btn btn-secondary btn-sm" onclick="app.clearChat()">Clear Chat</button>
+          </div>
+          <div class="chat-messages" id="chat-messages">
+             <div class="chat-msg assistant">
+                Hello! I am your AI Assistant. Select some scans from your library, and ask me to summarize them, extract data, or explain their contents.
+             </div>
+          </div>
+          <div class="chat-input-area">
+            <div id="chat-context-indicator" style="font-size:11px; color:var(--text3); margin-bottom:8px; font-weight: 500;">0 scans selected for context.</div>
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="chat-input" class="form-input" placeholder="Ask about your selected scans..." onkeypress="if(event.key === 'Enter') app.sendChatMessage()" />
+              <button class="btn btn-primary" onclick="app.sendChatMessage()" id="chat-send-btn">Send</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ════ SETTINGS ════════════════════════ -->
       <div id="view-settings">
-        <div class="settings-header-text">
-          <h2>Settings</h2>
-          <p>Configure your API keys, sync, and preferences.</p>
-        </div>
-
-        <!-- API Keys -->
+        <div class="settings-header-text"><h2>Settings</h2><p>Configure keys and preferences.</p></div>
         <div class="settings-card">
-          <div class="settings-card-header">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4"/>
-            </svg>
-            <span class="settings-card-title">API Keys</span>
-            <span class="settings-card-subtitle">Stored locally only</span>
-          </div>
-          
-          <div class="settings-row" style="display:block;">
-            <div class="settings-row-label">Cloudflare API Token</div>
-            <div class="settings-row-desc">Required for AI PDF generation via Workers AI</div>
-            <div class="key-input-wrap">
-              <input class="key-input" type="password" id="cf-api-key" placeholder="Bearer •••••••••••••••" />
-              <button class="key-eye-btn" onclick="toggleKeyVis('cf-api-key', this)">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-              </button>
-            </div>
-            <div style="display:flex;gap:8px;margin-top:12px">
-              <button class="btn btn-primary btn-sm" onclick="saveCfConfig()">Save Key</button>
-              <button class="btn btn-ghost btn-sm" onclick="document.getElementById('cf-api-key').value=''; saveCfConfig();">Clear</button>
-            </div>
-          </div>
-
-          <div class="settings-row" style="display:block;border-top:1px solid var(--border)">
-            <div class="settings-row-label">Cloudflare Account ID</div>
-            <div class="settings-row-desc">Required for Workers AI API calls</div>
-            <div class="key-input-wrap">
-              <input class="key-input" type="text" id="cf-account-id" placeholder="a1b2c3d4e5f6…" />
-            </div>
-            <div style="margin-top:12px">
-              <button class="btn btn-primary btn-sm" onclick="saveCfConfig()">Save ID</button>
-            </div>
+          <div class="settings-card-header"><span class="settings-card-title">Cloudflare Workers AI (BYOK)</span></div>
+          <div class="settings-row" style="display:block">
+            <div class="settings-row-label">API Token</div>
+            <div class="key-input-wrap"><input class="key-input" type="password" id="cf-api-key" placeholder="Bearer Token" /><button class="key-eye-btn" onclick="toggleKeyVis('cf-api-key', this)"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
+            <div class="key-input-wrap"><input class="key-input" type="text" id="cf-account-id" placeholder="Account ID" /></div>
+            <button class="btn btn-primary btn-sm" style="margin-top:10px" onclick="saveCfConfig()">Save AI Keys</button>
           </div>
         </div>
-
-        <!-- Sync -->
         <div class="settings-card">
-          <div class="settings-card-header">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
-            </svg>
-            <span class="settings-card-title">Cloud Sync</span>
-          </div>
-
-          <div class="settings-row" style="display:block;">
+          <div class="settings-card-header"><span class="settings-card-title">Cloud Sync</span></div>
+          <div class="settings-row" style="display:block">
             <div class="settings-row-label">Google Client ID</div>
-            <div class="settings-row-desc">Enter your Google Cloud Client ID to enable Drive sync.</div>
-            <div class="key-input-wrap">
-              <input class="key-input" type="text" id="gdrive-client-id" placeholder="your-client-id.apps.googleusercontent.com" />
-            </div>
-          </div>
-
-          <div class="settings-row">
-            <div class="settings-row-info">
-              <div class="settings-row-label">Google Drive</div>
-              <div class="settings-row-desc">Saves scans to a hidden .openscan folder</div>
-            </div>
-            <button class="btn btn-secondary btn-sm" onclick="connectGDrive()">Connect</button>
-          </div>
-
-          <div class="settings-row">
-            <div class="settings-row-info">
-              <div class="settings-row-label">Developer Mode (R2)</div>
-              <div class="settings-row-desc">Use Cloudflare R2 bucket as storage backend</div>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="dev-mode-toggle" onchange="toggleDevMode()" />
-              <div class="toggle-track"></div>
-            </label>
-          </div>
-          
-          <div id="r2-fields" style="display:none;padding:16px 20px;background:var(--bg3);border-top:1px solid var(--border)">
-            <div style="display:flex;flex-direction:column;gap:12px">
-              <input class="form-input" type="text" id="r2-account" placeholder="Account ID" />
-              <input class="form-input" type="text" id="r2-access-key" placeholder="Access Key ID" />
-              <div class="key-input-wrap" style="margin:0">
-                <input class="key-input" type="password" id="r2-secret" placeholder="Secret Access Key" />
-                <button class="key-eye-btn" onclick="toggleKeyVis('r2-secret', this)">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
-                </button>
-              </div>
-              <input class="form-input" type="text" id="r2-bucket" placeholder="Bucket Name" />
-              <button class="btn btn-primary btn-sm" onclick="saveR2Config()" style="align-self:flex-start">Save R2 Config</button>
-            </div>
+            <div class="key-input-wrap"><input class="key-input" type="text" id="gdrive-client-id" placeholder="....apps.googleusercontent.com" /></div>
+            <button class="btn btn-secondary btn-sm" style="margin-top:10px" onclick="connectGDrive()">Connect Drive</button>
           </div>
         </div>
-
-        <!-- Appearance -->
         <div class="settings-card">
-          <div class="settings-card-header">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"/><path d="M12 2a7 7 0 1 0 10 10"/>
-            </svg>
-            <span class="settings-card-title">Appearance & Camera</span>
-          </div>
-          
+          <div class="settings-card-header"><span class="settings-card-title">Preferences</span></div>
           <div class="settings-row">
-            <div class="settings-row-info">
-              <div class="settings-row-label">Dark Mode</div>
-              <div class="settings-row-desc">Switch between light and dark themes</div>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="dark-mode-toggle" onchange="toggleTheme()" />
-              <div class="toggle-track"></div>
-            </label>
+            <div class="settings-row-info"><div class="settings-row-label">Auto-Crop to Guide</div></div>
+            <label class="toggle"><input type="checkbox" id="auto-crop-toggle" checked onchange="toggleAutoCrop()"/><div class="toggle-track"></div></label>
           </div>
-
           <div class="settings-row">
-            <div class="settings-row-info">
-              <div class="settings-row-label">Auto-Crop to Guide</div>
-              <div class="settings-row-desc">Automatically trim the image to the white boundary guide</div>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="auto-crop-toggle" checked onchange="toggleAutoCrop()" />
-              <div class="toggle-track"></div>
-            </label>
-          </div>
-          
-          <div class="settings-row">
-            <div class="settings-row-info">
-              <div class="settings-row-label">Scan Guide Overlay</div>
-              <div class="settings-row-desc">Show document boundary guide in scanner</div>
-            </div>
-            <label class="toggle">
-              <input type="checkbox" id="guide-toggle" checked onchange="toggleGuide()" />
-              <div class="toggle-track"></div>
-            </label>
+            <div class="settings-row-info"><div class="settings-row-label">Dark Mode</div></div>
+            <label class="toggle"><input type="checkbox" id="dark-mode-toggle" onchange="toggleTheme()"/><div class="toggle-track"></div></label>
           </div>
         </div>
-
-        <!-- Data -->
         <div class="settings-card">
-          <div class="settings-card-header">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
-            </svg>
-            <span class="settings-card-title">Data</span>
-          </div>
-          
-          <div class="settings-row">
-            <div class="settings-row-info">
-              <div class="settings-row-label">Storage Used</div>
-              <div class="settings-row-desc" id="storage-used">Calculating…</div>
-            </div>
-          </div>
-
-          <div class="settings-row">
-            <div class="settings-row-info">
-              <div class="settings-row-label">Export All Scans</div>
-              <div class="settings-row-desc">Download all scans as a single ZIP archive</div>
-            </div>
-            <button class="btn btn-secondary btn-sm" onclick="exportAllScans()">Export ZIP</button>
-          </div>
-
-          <div class="settings-row">
-            <div class="settings-row-info">
-              <div class="settings-row-label">Clear All Data</div>
-              <div class="settings-row-desc" style="color:var(--danger)">Permanently delete all local scans</div>
-            </div>
-            <button class="btn btn-danger btn-sm" onclick="confirmClearAll()">Clear All</button>
-          </div>
+            <div class="settings-card-header"><span class="settings-card-title">Data</span></div>
+            <div class="settings-row"><div class="settings-row-info" id="storage-used">Calculating...</div><button class="btn btn-secondary btn-sm" onclick="exportAllScans()">Export ZIP</button></div>
+            <div class="settings-row"><button class="btn btn-danger btn-sm" onclick="confirmClearAll()">Delete All Data</button></div>
         </div>
-
-        <!-- About -->
         <div class="settings-card">
-          <div class="settings-card-header">
-            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-            </svg>
-            <span class="settings-card-title">About</span>
-          </div>
-          
-          <div class="settings-row">
-            <div class="settings-row-info">
-              <div class="settings-row-label">Openscan AI</div>
-              <div class="settings-row-desc">Version 1.0.0 · Free & Open Source</div>
-            </div>
-            <a href="https://github.com/TheMinescout/openscan-ai/" target="_blank" class="btn btn-ghost btn-sm" style="text-decoration:none">GitHub ↗</a>
-          </div>
-          
-          <div class="settings-row">
-            <div class="settings-row-info">
-              <div class="settings-row-label">Privacy First</div>
-              <div class="settings-row-desc">All data stored locally. No telemetry. BYOK model ensures your scans stay yours.</div>
-            </div>
-          </div>
+            <div class="settings-card-header"><span class="settings-card-title">About</span></div>
+            <div class="settings-row">Openscan AI V1.1.0 — <a href="https://github.com/TheMinescout/openscan-ai/" target="_blank">GitHub</a></div>
         </div>
-
       </div>
     </div>
   </div>
 </div>
 
-<!-- ═══ MOBILE NAV ══════════════════════════════════ -->
 <nav class="mobile-nav">
   <div class="mobile-nav-inner">
-    <button class="mobile-nav-item active" id="mob-scanner" onclick="switchView('scanner')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-      Scanner
-    </button>
-    <button class="mobile-nav-item" id="mob-library" onclick="switchView('library')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>
-      Library
-    </button>
-    <button class="mobile-nav-item" id="mob-export" onclick="switchView('export')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14,2 14,8 20,8"/></svg>
-      Export
-    </button>
-    <button class="mobile-nav-item" id="mob-settings" onclick="switchView('settings')">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-      Settings
-    </button>
+    <button class="mobile-nav-item active" id="mob-scanner" onclick="switchView('scanner')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>Scanner</button>
+    <button class="mobile-nav-item" id="mob-library" onclick="switchView('library')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/></svg>Library</button>
+    <button class="mobile-nav-item" id="mob-export" onclick="switchView('export')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/></svg>Export</button>
+    <button class="mobile-nav-item" id="mob-ask" onclick="switchView('ask')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>Ask</button>
+    <button class="mobile-nav-item" id="mob-settings" onclick="switchView('settings')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>Settings</button>
   </div>
 </nav>
 
-<!-- ═══ SELECTION BAR ──────────────────────────── -->
 <div class="selection-bar" id="selection-bar">
-  <span class="selection-bar-count" id="selection-count">0 selected</span>
+  <span id="selection-count">0 selected</span>
   <div class="selection-bar-actions">
-    <button class="btn btn-ghost btn-sm" style="color:var(--bg)" onclick="clearSelection()">Deselect</button>
+    <button class="btn btn-ghost btn-sm" onclick="clearSelection()" style="color:white">Cancel</button>
     <button class="btn btn-danger btn-sm" onclick="deleteSelected()">Delete</button>
-    <button class="btn btn-primary btn-sm" style="background:var(--bg);color:var(--text)" onclick="exportSelected()">Export</button>
+    <button class="btn btn-primary btn-sm" style="background:white;color:black" onclick="exportSelected()">Export/Ask</button>
   </div>
 </div>
 
-<!-- ═══ CONFIRM MODAL ════════════════════════════════ -->
 <div class="modal-backdrop" id="confirm-modal" onclick="closeModal('confirm-modal')">
   <div class="modal" onclick="event.stopPropagation()">
-    <div class="modal-header">
-      <div class="modal-title" id="confirm-title">Confirm</div>
-      <div class="modal-subtitle" id="confirm-subtitle"></div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModal('confirm-modal')">Cancel</button>
-      <button class="btn btn-danger" id="confirm-ok-btn">Delete All</button>
-    </div>
+    <div class="modal-header"><div class="modal-title" id="confirm-title">Confirm</div></div>
+    <div class="modal-body" id="confirm-subtitle"></div>
+    <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('confirm-modal')">Cancel</button><button class="btn btn-danger" id="confirm-ok-btn">Confirm</button></div>
   </div>
 </div>
 
-<!-- TOAST & HIDDEN ELEMENTS -->
 <div id="toast-container"></div>
 <canvas id="process-canvas" style="display:none"></canvas>
 
 <script>
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// GOOGLE DRIVE SYNC (GSI OAuth 2.0)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-let gisInited = false;
-
-function gisLoaded() {
-  gisInited = true;
-}
-
-function connectGDrive() {
-  const clientId = document.getElementById('gdrive-client-id').value.trim();
-  
-  if (!clientId) {
-    showToast('Please enter your Google Client ID first.', 'warn');
-    return;
-  }
-  
-  localStorage.setItem('gdrive-client-id', clientId);
-
-  if (!gisInited) {
-    showToast('Google API is still loading...', 'warn');
-    return;
-  }
-  
-  try {
-    const tokenClient = google.accounts.oauth2.initTokenClient({
-      client_id: clientId,
-      scope: 'https://www.googleapis.com/auth/drive.file',
-      callback: (tokenResponse) => {
-        if (tokenResponse && tokenResponse.access_token) {
-          localStorage.setItem('gdrive-token', tokenResponse.access_token);
-          showToast('Google Drive Connected!', 'success');
-          document.getElementById('sync-status-text').textContent = 'Drive Synced';
-          document.getElementById('sync-dot').style.background = 'var(--success)';
-        }
-      },
-    });
-    tokenClient.requestAccessToken({prompt: 'consent'});
-  } catch(e) {
-    showToast('Error initializing Google OAuth. Check Client ID.', 'error');
-    console.error(e);
-  }
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// STATE & DB
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const state = {
-  currentView: 'scanner',
-  scans: [],
-  selected: new Set(),
-  filter: 'none',
-  contrast: 100,
-  stream: null,
-  facingMode: 'environment',
-  flashOn: false,
-  autoScan: false,
-  autoCrop: true // NEW: Auto Crop Setting
-};
-
+const state = { currentView: 'scanner', scans: [], selected: new Set(), chatHistory: [], filter: 'none', contrast: 100, stream: null, facingMode: 'environment', flashOn: false, autoScan: false, autoCrop: true };
 const db = localforage.createInstance({ name: 'openscan-ai', storeName: 'scans' });
 
-async function saveScans() {
-  try {
-    await db.setItem('scans', state.scans);
-    updateBadge();
-    estimateStorage(); // Update storage count whenever scans are saved
-  } catch(e) { console.error('Save error', e); }
+async function saveScans() { await db.setItem('scans', state.scans); updateBadge(); estimateStorage(); }
+async function saveChat() { await db.setItem('chatHistory', state.chatHistory); }
+async function loadScans() { 
+  const saved = await db.getItem('scans'); if (saved) { state.scans = saved; renderLibrary(); updateBadge(); } 
+  const savedChat = await db.getItem('chatHistory'); if (savedChat) { state.chatHistory = savedChat; app.renderChat(); }
 }
-
-async function loadScans() {
-  try {
-    const saved = await db.getItem('scans');
-    if (saved) { state.scans = saved; renderLibrary(); updateBadge(); }
-  } catch(e) { console.error('Load error', e); }
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// NAVIGATION
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-const viewTitles = { scanner: 'Scanner', library: 'Library', export: 'AI PDF', settings: 'Settings' };
 
 function switchView(view) {
   state.currentView = view;
   document.querySelectorAll('[id^="view-"]').forEach(v => v.classList.remove('active'));
   document.getElementById('view-' + view).classList.add('active');
-
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  const navBtn = document.querySelector(`.nav-item[data-view="${view}"]`);
-  if (navBtn) navBtn.classList.add('active');
-
+  document.querySelector(`.nav-item[data-view="${view}"]`)?.classList.add('active');
   document.querySelectorAll('.mobile-nav-item').forEach(n => n.classList.remove('active'));
-  const mobBtn = document.getElementById('mob-' + view);
-  if (mobBtn) mobBtn.classList.add('active');
-
-  document.getElementById('topbar-title').textContent = viewTitles[view] || view;
-
+  document.getElementById('mob-' + view)?.classList.add('active');
+  
+  const titleMap = { 'export': 'Export PDF', 'ask': 'Ask AI' };
+  document.getElementById('topbar-title').textContent = titleMap[view] || (view.charAt(0).toUpperCase() + view.slice(1));
+  
   if (view === 'scanner' && !state.stream) startCamera();
   if (view === 'settings') refreshSettings();
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// SELECTION BAR (NEW)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function updateSelectionBar() {
-  const bar = document.getElementById('selection-bar');
-  const count = state.selected.size;
-  if (count > 0) {
-    bar.classList.add('visible');
-    document.getElementById('selection-count').textContent = count + ' selected';
-  } else {
-    bar.classList.remove('visible');
+  if (view === 'ask') {
+      document.getElementById('chat-context-indicator').textContent = `${state.selected.size} scans selected for context.`;
+      app.renderChat();
   }
 }
 
-function clearSelection() {
-  state.selected.clear();
-  renderLibrary();
-  updateSelectionBar();
-}
-
-function deleteSelected() {
-  if (state.selected.size === 0) return;
-  document.getElementById('confirm-title').textContent = 'Delete Scans?';
-  document.getElementById('confirm-subtitle').textContent = `Are you sure you want to delete ${state.selected.size} scan(s)?`;
-  
-  const okBtn = document.getElementById('confirm-ok-btn');
-  okBtn.textContent = 'Delete';
-  okBtn.onclick = async () => {
-    state.scans = state.scans.filter(s => !state.selected.has(s.id));
-    state.selected.clear();
-    await saveScans();
-    renderLibrary();
-    updateSelectionBar();
-    closeModal('confirm-modal');
-    showToast('Scans deleted', 'success');
-  };
-  
-  openModal('confirm-modal');
-}
-
-function exportSelected() {
-  if (state.selected.size === 0) return;
-  switchView('export');
-}
-
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// CAMERA & FILTERS
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 async function startCamera() {
   const video = document.getElementById('camera-video');
   try {
     if (state.stream) state.stream.getTracks().forEach(t => t.stop());
-    const stream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: state.facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
-      audio: false
-    });
-    state.stream = stream;
-    video.srcObject = stream;
+    state.stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: state.facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false });
+    video.srcObject = state.stream;
     updateLiveVideoFilter();
-  } catch(err) {
-    console.warn('Camera error:', err);
-    showToast('Camera access denied.', 'error');
-  }
+  } catch(err) { showToast('Camera denied.', 'error'); }
 }
 
-async function switchCamera() {
-  state.facingMode = state.facingMode === 'environment' ? 'user' : 'environment';
-  await startCamera();
-}
+function switchCamera() { state.facingMode = state.facingMode === 'environment' ? 'user' : 'environment'; startCamera(); }
+function toggleFlash() { if (!state.stream) return; const track = state.stream.getVideoTracks()[0]; try { state.flashOn = !state.flashOn; track.applyConstraints({ advanced: [{ torch: state.flashOn }] }); showToast(state.flashOn ? 'Flash on' : 'Flash off'); } catch(e) { showToast('No flash support', 'warn'); } }
+function updateLiveVideoFilter() { const v = document.getElementById('camera-video'); if (!v) return; let f = ''; if (state.filter === 'grayscale') f = 'grayscale(1)'; else if (state.filter === 'bw') f = 'grayscale(1) contrast(2)'; else if (state.filter === 'enhance') f = 'saturate(1.5) contrast(1.2)'; if (state.contrast !== 100) f += ` contrast(${state.contrast}%)`; v.style.filter = f || 'none'; }
+function setFilter(f, btn) { state.filter = f; document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active')); btn.classList.add('active'); updateLiveVideoFilter(); }
+function updateContrast(val) { state.contrast = parseInt(val); document.getElementById('contrast-val').textContent = val; updateLiveVideoFilter(); }
 
-function toggleFlash() {
-  if (!state.stream) return;
-  const track = state.stream.getVideoTracks()[0];
-  try {
-    state.flashOn = !state.flashOn;
-    track.applyConstraints({ advanced: [{ torch: state.flashOn }] });
-    showToast(state.flashOn ? 'Flash on' : 'Flash off');
-  } catch(e) { showToast('Flash not supported', 'warn'); }
-}
-
-function updateLiveVideoFilter() {
-  const video = document.getElementById('camera-video');
-  if (!video) return;
-  
-  let cssFilter = '';
-  if (state.filter === 'grayscale') cssFilter = 'grayscale(100%)';
-  else if (state.filter === 'bw') cssFilter = 'grayscale(100%) contrast(200%)';
-  else if (state.filter === 'enhance') cssFilter = 'saturate(150%) contrast(120%)';
-  
-  if (state.contrast !== 100) cssFilter += ` contrast(${state.contrast}%)`;
-  
-  video.style.filter = cssFilter.trim() || 'none';
-}
-
-function setFilter(filter, btn) {
-  state.filter = filter;
-  document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
-  btn.classList.add('active');
-  updateLiveVideoFilter(); 
-}
-
-function updateContrast(val) {
-  state.contrast = parseInt(val);
-  document.getElementById('contrast-val').textContent = val;
-  updateLiveVideoFilter();
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// AUTOSCAN (Motion-Stability Engine)
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-let autoScanInterval = null;
-let autoScanLastData = null;
-let stableCount = 0;
-let autoScanPaused = false;
-
+// ─── AUTOSCAN ENGINE ───
+let autoScanInterval = null, autoScanLastData = null, stableCount = 0, autoScanPaused = false;
 function toggleAutoScan() {
   state.autoScan = !state.autoScan;
   const btn = document.getElementById('auto-scan-toggle');
-  
-  if (state.autoScan) {
-    btn.textContent = 'AUTO: ON';
-    btn.classList.add('active');
-    startAutoScanLoop();
-    showToast('Hold still to auto-capture', 'success');
-  } else {
-    btn.textContent = 'AUTO: OFF';
-    btn.classList.remove('active');
-    stopAutoScanLoop();
-  }
+  if (state.autoScan) { btn.textContent = 'AUTO: ON'; btn.classList.add('active'); startAutoScanLoop(); showToast('Hold still to auto-capture', 'success'); }
+  else { btn.textContent = 'AUTO: OFF'; btn.classList.remove('active'); stopAutoScanLoop(); }
 }
-
-function startAutoScanLoop() {
-  if (autoScanInterval) clearInterval(autoScanInterval);
-  stableCount = 0;
-  autoScanPaused = false;
-  autoScanInterval = setInterval(checkStability, 250);
-}
-
-function stopAutoScanLoop() {
-  if (autoScanInterval) clearInterval(autoScanInterval);
-  autoScanInterval = null;
-  document.getElementById('scan-guide').style.borderColor = 'rgba(255,255,255,0.4)';
-}
-
+function startAutoScanLoop() { if (autoScanInterval) clearInterval(autoScanInterval); stableCount = 0; autoScanPaused = false; autoScanInterval = setInterval(checkStability, 250); }
+function stopAutoScanLoop() { if (autoScanInterval) clearInterval(autoScanInterval); autoScanInterval = null; document.getElementById('scan-guide').classList.remove('detecting'); }
 function checkStability() {
   if (!state.stream || autoScanPaused || state.currentView !== 'scanner') return;
-
-  const video = document.getElementById('camera-video');
-  if (video.videoWidth === 0) return;
-
-  const canvas = document.createElement('canvas');
-  canvas.width = 64; canvas.height = 64;
-  const ctx = canvas.getContext('2d', { willReadFrequently: true });
-  ctx.drawImage(video, 0, 0, 64, 64);
-  const currentData = ctx.getImageData(0, 0, 64, 64).data;
-
+  const v = document.getElementById('camera-video');
+  if (v.videoWidth === 0) return;
+  const c = document.createElement('canvas'); c.width = 64; c.height = 64;
+  const ctx = c.getContext('2d', { willReadFrequently: true }); ctx.drawImage(v, 0, 0, 64, 64);
+  const data = ctx.getImageData(0, 0, 64, 64).data;
   if (autoScanLastData) {
-    let diff = 0;
-    for (let i = 0; i < currentData.length; i += 4) {
-      diff += Math.abs(currentData[i] - autoScanLastData[i]); 
-      diff += Math.abs(currentData[i+1] - autoScanLastData[i+1]); 
-      diff += Math.abs(currentData[i+2] - autoScanLastData[i+2]); 
-    }
-    
-    const avgDiff = diff / (64 * 64 * 3);
-
-    if (avgDiff < 8) { 
-      stableCount++;
-      document.getElementById('scan-guide').style.borderColor = 'var(--success)';
-      
-      if (stableCount >= 5) { 
-        autoScanPaused = true;
-        capturePhoto();
-        document.getElementById('scan-guide').style.borderColor = 'rgba(255,255,255,0.4)';
-        setTimeout(() => {
-          stableCount = 0;
-          autoScanLastData = null;
-          autoScanPaused = false;
-        }, 3000); 
-        return;
-      }
-    } else {
-      stableCount = 0;
-      document.getElementById('scan-guide').style.borderColor = 'rgba(255,255,255,0.4)';
-    }
+    let diff = 0; for (let i = 0; i < data.length; i += 4) diff += Math.abs(data[i] - autoScanLastData[i]);
+    if ((diff / (64*64)) < 15) {
+      stableCount++; document.getElementById('scan-guide').classList.add('detecting');
+      if (stableCount >= 5) { autoScanPaused = true; capturePhoto(); setTimeout(() => { stableCount = 0; autoScanLastData = null; autoScanPaused = false; }, 3000); }
+    } else { stableCount = 0; document.getElementById('scan-guide').classList.remove('detecting'); }
   }
-  autoScanLastData = currentData;
+  autoScanLastData = data;
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// CAPTURE & AUTO-CROP
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ─── CAPTURE & ANIMATION ───
 function capturePhoto() {
-  const video = document.getElementById('camera-video');
-  if (!video.srcObject || video.videoWidth === 0) return;
+  const v = document.getElementById('camera-video'); if (!v.srcObject) return;
+  const c = document.getElementById('capture-canvas'); const ctx = c.getContext('2d');
+  if (state.autoCrop) {
+    const vp = document.getElementById('scanner-viewport'); const g = document.getElementById('scan-guide');
+    const vR = v.videoWidth / v.videoHeight; const vpR = vp.clientWidth / vp.clientHeight;
+    let rW, rH, oX = 0, oY = 0;
+    if (vR > vpR) { rH = vp.clientHeight; rW = rH * vR; oX = (rW - vp.clientWidth) / 2; }
+    else { rW = vp.clientWidth; rH = rW / vR; oY = (rH - vp.clientHeight) / 2; }
+    const gr = g.getBoundingClientRect(); const vr = v.getBoundingClientRect();
+    let sX = (gr.left - vr.left + oX) * (v.videoWidth / rW);
+    let sY = (gr.top - vr.top + oY) * (v.videoHeight / rH);
+    let sW = gr.width * (v.videoWidth / rW); let sH = gr.height * (v.videoHeight / rH);
+    c.width = sW; c.height = sH; ctx.drawImage(v, sX, sY, sW, sH, 0, 0, sW, sH);
+  } else { c.width = v.videoWidth; c.height = v.videoHeight; ctx.drawImage(v, 0, 0); }
   
-  const canvas = document.getElementById('capture-canvas');
-  const ctx = canvas.getContext('2d');
-  
-  // Mathematical Auto-Crop to Guide boundary
-  if (state.autoCrop && document.getElementById('guide-toggle').checked) {
-    const viewport = document.getElementById('scanner-viewport');
-    const guide = document.getElementById('scan-guide');
-    
-    const videoRatio = video.videoWidth / video.videoHeight;
-    const viewRatio = viewport.clientWidth / viewport.clientHeight;
-    
-    let renderW, renderH, offsetX = 0, offsetY = 0;
-    
-    // object-fit: cover math
-    if (videoRatio > viewRatio) {
-      renderH = viewport.clientHeight;
-      renderW = renderH * videoRatio;
-      offsetX = (renderW - viewport.clientWidth) / 2;
-    } else {
-      renderW = viewport.clientWidth;
-      renderH = renderW / videoRatio;
-      offsetY = (renderH - viewport.clientHeight) / 2;
-    }
-    
-    const guideRect = guide.getBoundingClientRect();
-    const videoRect = video.getBoundingClientRect();
-    
-    let gLeft = guideRect.left - videoRect.left;
-    let gTop = guideRect.top - videoRect.top;
-    
-    let srcX = (gLeft + offsetX) * (video.videoWidth / renderW);
-    let srcY = (gTop + offsetY) * (video.videoHeight / renderH);
-    let srcW = guideRect.width * (video.videoWidth / renderW);
-    let srcH = guideRect.height * (video.videoHeight / renderH);
-    
-    // Ensure we don't grab pixels outside the actual video feed
-    srcX = Math.max(0, srcX);
-    srcY = Math.max(0, srcY);
-    srcW = Math.min(video.videoWidth - srcX, srcW);
-    srcH = Math.min(video.videoHeight - srcY, srcH);
-    
-    canvas.width = srcW;
-    canvas.height = srcH;
-    ctx.drawImage(video, srcX, srcY, srcW, srcH, 0, 0, srcW, srcH);
-    
-  } else {
-    // Standard full-frame capture
-    canvas.width = video.videoWidth || 1280;
-    canvas.height = video.videoHeight || 720;
-    ctx.drawImage(video, 0, 0);
-  }
-
-  const processed = applyFilterToCanvas(canvas);
-  
-  state.scans.unshift({
-    id: Date.now().toString(),
-    name: 'Scan ' + new Date().toLocaleTimeString(),
-    date: new Date().toISOString(),
-    dataUrl: processed
-  });
-  
-  saveScans();
-  renderLibrary();
-  
-  // Flash effect
-  document.getElementById('scanner-viewport').style.background = '#fff';
-  setTimeout(() => document.getElementById('scanner-viewport').style.background = '#000', 100);
-  
-  if(state.autoScan) {
-    showToast('Auto-Captured!', 'success');
-  } else {
-    showToast('Scan saved!');
-  }
+  const data = applyFilterToCanvas(c);
+  state.scans.unshift({ id: Date.now().toString(), name: 'Scan ' + new Date().toLocaleTimeString(), date: new Date().toISOString(), dataUrl: data });
+  saveScans(); renderLibrary();
+  triggerCaptureAnimation(data);
+  showToast('Saved!', 'success');
 }
 
-function applyFilterToCanvas(sourceCanvas) {
-  const proc = document.getElementById('process-canvas');
-  proc.width = sourceCanvas.width;
-  proc.height = sourceCanvas.height;
-  const ctx = proc.getContext('2d', { willReadFrequently: true });
-  ctx.drawImage(sourceCanvas, 0, 0);
+function triggerCaptureAnimation(data) {
+  const img = document.createElement('img'); img.src = data; img.className = 'captured-anim';
+  const start = document.getElementById('scan-guide').getBoundingClientRect();
+  img.style.left = start.left + 'px'; img.style.top = start.top + 'px';
+  document.body.appendChild(img);
+  setTimeout(() => {
+    const end = document.getElementById('mob-library')?.getBoundingClientRect() || { left: 0, top: window.innerHeight };
+    img.style.left = end.left + 'px'; img.style.top = end.top + 'px'; img.style.width = '20px'; img.style.height = '20px'; img.style.opacity = '0';
+    setTimeout(() => img.remove(), 700);
+  }, 50);
+}
 
-  if (state.filter === 'none' && state.contrast === 100) return proc.toDataURL('image/jpeg', 0.92);
-
-  const imageData = ctx.getImageData(0, 0, proc.width, proc.height);
-  const data = imageData.data;
-  const contrastFactor = (state.contrast / 100);
-
-  for (let i = 0; i < data.length; i += 4) {
-    let r = data[i], g = data[i+1], b = data[i+2];
-
-    if (state.filter === 'grayscale' || state.filter === 'bw' || state.filter === 'enhance') {
-      const gray = 0.299*r + 0.587*g + 0.114*b;
-      r = g = b = gray;
-    }
-    if (state.filter === 'bw') r = g = b = r > 128 ? 255 : 0;
-    if (state.filter === 'enhance') {
-      r = Math.min(255, r * 1.15); g = Math.min(255, g * 1.15); b = Math.min(255, b * 1.15);
-    }
-    if (contrastFactor !== 1) {
-      r = Math.min(255, Math.max(0, (r - 128) * contrastFactor + 128));
-      g = Math.min(255, Math.max(0, (g - 128) * contrastFactor + 128));
-      b = Math.min(255, Math.max(0, (b - 128) * contrastFactor + 128));
-    }
-    data[i] = r; data[i+1] = g; data[i+2] = b;
+function applyFilterToCanvas(source) {
+  const p = document.getElementById('process-canvas'); p.width = source.width; p.height = source.height;
+  const ctx = p.getContext('2d', { willReadFrequently: true }); ctx.drawImage(source, 0, 0);
+  if (state.filter === 'none' && state.contrast === 100) return p.toDataURL('image/jpeg', 0.9);
+  const id = ctx.getImageData(0,0,p.width,p.height); const d = id.data; const cf = state.contrast / 100;
+  for (let i = 0; i < d.length; i += 4) {
+    if (state.filter !== 'none') { let g = 0.3*d[i] + 0.59*d[i+1] + 0.11*d[i+2]; d[i]=d[i+1]=d[i+2]=g; }
+    if (state.filter === 'bw') d[i]=d[i+1]=d[i+2] = d[i]>128?255:0;
+    if (state.filter === 'enhance') { d[i]*=1.1; d[i+1]*=1.1; d[i+2]*=1.1; }
+    d[i] = (d[i]-128)*cf+128; d[i+1] = (d[i+1]-128)*cf+128; d[i+2] = (d[i+2]-128)*cf+128;
   }
-  ctx.putImageData(imageData, 0, 0);
-  return proc.toDataURL('image/jpeg', 0.92);
+  ctx.putImageData(id,0,0); return p.toDataURL('image/jpeg', 0.9);
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// LIBRARY
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function renderLibrary(query = '') {
-  const grid = document.getElementById('scans-grid');
-  const filtered = state.scans.filter(s => !query || s.name.toLowerCase().includes(query.toLowerCase()));
-
-  document.getElementById('empty-state').style.display = filtered.length === 0 ? 'block' : 'none';
-  
-  grid.innerHTML = filtered.map(scan => `
-    <div class="scan-card ${state.selected.has(scan.id) ? 'selected' : ''}" onclick="toggleSelect('${scan.id}')">
-      <img class="scan-card-thumb" src="${scan.dataUrl}" loading="lazy" />
-      <div class="scan-card-info">
-        <div class="scan-card-name">${scan.name}</div>
-        <div class="scan-card-date">${new Date(scan.date).toLocaleDateString()}</div>
-      </div>
-    </div>
-  `).join('');
+// ─── LIBRARY & SELECTION ───
+function renderLibrary(q='') {
+  const g = document.getElementById('scans-grid'); const f = state.scans.filter(s => !q || s.name.toLowerCase().includes(q.toLowerCase()));
+  document.getElementById('empty-state').style.display = f.length ? 'none' : 'block';
+  g.innerHTML = f.map(s => `<div class="scan-card ${state.selected.has(s.id)?'selected':''}" onclick="toggleSelect('${s.id}')"><img class="scan-card-thumb" src="${s.dataUrl}"/><div class="scan-card-info"><div class="scan-card-name">${s.name}</div><div class="scan-card-date">${new Date(s.date).toLocaleDateString()}</div></div></div>`).join('');
 }
-
 function filterScans() { renderLibrary(document.getElementById('search-input').value); }
+function toggleSelect(id) { if (state.selected.has(id)) state.selected.delete(id); else state.selected.add(id); renderLibrary(); updateSelectionBar(); }
+function updateSelectionBar() { const bar = document.getElementById('selection-bar'); const count = state.selected.size; if (count > 0) { bar.classList.add('visible'); document.getElementById('selection-count').textContent = count + ' selected'; } else bar.classList.remove('visible'); }
+function clearSelection() { state.selected.clear(); renderLibrary(); updateSelectionBar(); }
+function deleteSelected() {
+  document.getElementById('confirm-title').textContent = 'Delete Scans?'; document.getElementById('confirm-subtitle').textContent = `Permanently delete ${state.selected.size} items?`;
+  document.getElementById('confirm-ok-btn').onclick = async () => { state.scans = state.scans.filter(s => !state.selected.has(s.id)); state.selected.clear(); await saveScans(); renderLibrary(); updateSelectionBar(); closeModal('confirm-modal'); };
+  openModal('confirm-modal');
+}
+function exportSelected() { if (state.selected.size > 0) switchView('export'); }
+function updateBadge() { const b = document.getElementById('scan-count-badge'); b.textContent = state.scans.length; b.style.display = state.scans.length ? 'inline-block' : 'none'; }
 
-function toggleSelect(id) {
-  if (state.selected.has(id)) state.selected.delete(id);
-  else state.selected.add(id);
-  renderLibrary();
-  updateSelectionBar(); // NEW
+// ─── LOCAL OCR ENGINE (Tesseract.js) ───
+async function extractTextFromScan(scan) {
+  if (scan.ocrText) return scan.ocrText; // Return cached if exists
+  try {
+    const worker = await Tesseract.createWorker('eng');
+    const ret = await worker.recognize(scan.dataUrl);
+    await worker.terminate();
+    scan.ocrText = ret.data.text;
+    saveScans(); // Background save
+    return ret.data.text;
+  } catch (e) {
+    console.error("OCR Error", e);
+    return "[Text extraction failed for this image]";
+  }
 }
 
-function updateBadge() {
-  const badge = document.getElementById('scan-count-badge');
-  badge.textContent = state.scans.length;
-  badge.style.display = state.scans.length ? 'inline-block' : 'none';
+// ─── ASK AI CHAT LOGIC ───
+const app = {
+  renderChat() {
+    const container = document.getElementById('chat-messages');
+    let html = `<div class="chat-msg assistant">Hello! Select some scans from your library, and ask me to summarize them, extract data, or explain their contents.</div>`;
+    state.chatHistory.forEach(msg => {
+      if (msg.role === 'user') {
+        html += `<div class="chat-msg user">${msg.content}</div>`;
+      } else {
+        html += `<div class="chat-msg assistant markdown-body">${marked.parse(msg.content)}</div>`;
+      }
+    });
+    container.innerHTML = html;
+    container.scrollTop = container.scrollHeight;
+  },
+
+  async sendChatMessage() {
+    const input = document.getElementById('chat-input');
+    const message = input.value.trim();
+    if (!message) return;
+    
+    const key = localStorage.getItem('cf-key');
+    const acc = localStorage.getItem('cf-acc');
+    if (!key || !acc) {
+      showToast('Please configure your Cloudflare AI Keys in Settings', 'warn');
+      return;
+    }
+
+    input.value = '';
+    state.chatHistory.push({ role: 'user', content: message });
+    this.renderChat();
+    saveChat();
+
+    const sendBtn = document.getElementById('chat-send-btn');
+    sendBtn.disabled = true;
+    sendBtn.textContent = '...';
+
+    try {
+      let contextText = '';
+      if (state.selected.size > 0) {
+        showToast('Extracting text from selected scans...');
+        const scans = state.scans.filter(s => state.selected.has(s.id));
+        for (let i = 0; i < scans.length; i++) {
+          const text = await extractTextFromScan(scans[i]);
+          contextText += `\n--- Document ${i+1}: ${scans[i].name} ---\n${text}\n`;
+        }
+      }
+
+      let systemPrompt = `You are a helpful AI assistant built into a document scanning app. Answer the user's questions clearly. Format using Markdown.`;
+      let userPrompt = message;
+      if (contextText) {
+        userPrompt = `Context Documents:\n${contextText}\n\nUser Question: ${message}`;
+      }
+
+      // Convert history for API (excluding the last user message which we just added)
+      const apiMessages = [ { role: 'system', content: systemPrompt } ];
+      // We take the last 6 messages to save context limits
+      const recentHistory = state.chatHistory.slice(-6, -1);
+      apiMessages.push(...recentHistory);
+      apiMessages.push({ role: 'user', content: userPrompt });
+
+      const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${acc}/ai/run/@cf/meta/llama-3-8b-instruct`, { 
+        method: 'POST', 
+        headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' }, 
+        body: JSON.stringify({ messages: apiMessages }) 
+      });
+
+      if (!res.ok) throw new Error('API Error');
+      const data = await res.json();
+      const aiResponse = data.result.response.trim();
+
+      state.chatHistory.push({ role: 'assistant', content: aiResponse });
+      this.renderChat();
+      saveChat();
+
+    } catch (e) {
+      showToast('Failed to get AI response.', 'error');
+      console.error(e);
+      // Remove failed user message
+      state.chatHistory.pop();
+      this.renderChat();
+    } finally {
+      sendBtn.disabled = false;
+      sendBtn.textContent = 'Send';
+    }
+  },
+
+  clearChat() {
+    state.chatHistory = [];
+    saveChat();
+    this.renderChat();
+  }
+};
+
+// ─── AI & LOCAL PDF ───
+async function generateLocalPDF() {
+  const scans = state.selected.size ? state.scans.filter(s => state.selected.has(s.id)) : state.scans.slice(0, 5);
+  if (!scans.length) return showToast('No scans selected', 'warn');
+  
+  // Directly just the images, no header or padding
+  const html = `<div style="margin:0;padding:0;background:white;">${scans.map(s => `<img src="${s.dataUrl}" style="width:100%; display:block; margin: 0 auto; page-break-inside: avoid;"/>`).join('<div style="page-break-after:always;"></div>')}</div>`;
+  renderPreview(html);
+  showToast('Direct Document generated');
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// CLOUDFLARE AI PDF
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 async function generateAIPDF() {
-  const apiKey = localStorage.getItem('cf-key');
-  const accId = localStorage.getItem('cf-acc');
+  const key = localStorage.getItem('cf-key');
+  const acc = localStorage.getItem('cf-acc');
   const selectedScans = state.selected.size > 0 ? state.scans.filter(s => state.selected.has(s.id)) : state.scans.slice(0, 3);
 
   if (selectedScans.length === 0) { showToast('No scans available', 'warn'); return; }
+  if (!key || !acc) { showToast('Add AI Keys in Settings', 'warn'); return; }
 
-  const docTitle = document.getElementById('doc-title').value || 'Scanned Document';
-  let html = '';
+  const btn = document.getElementById('generate-btn');
+  btn.textContent = 'Reading Images (OCR)...';
+  btn.disabled = true;
 
-  document.getElementById('generate-btn').textContent = 'Generating...';
-
-  if (!apiKey || !accId) {
-    showToast('No API Key found. Generating fallback PDF layout.', 'warn');
-    html = `<div style="font-family:sans-serif;padding:40px;">
-      <h1 style="color:#111;">${docTitle}</h1>
-      <hr style="margin-bottom:30px;border:1px solid #eee;"/>
-      ${selectedScans.map(s => `<img src="${s.dataUrl}" style="max-width:100%;margin-bottom:20px;border:1px solid #ddd;border-radius:4px;" />`).join('')}
-    </div>`;
-  } else {
-    try {
-      const prompt = `You are a strict HTML generator. Generate a beautiful, clean HTML document layout for a scanned PDF. Title is "${docTitle}". There are ${selectedScans.length} pages. Use placeholders {{IMAGES}} where images go. Instructions: ${document.getElementById('ai-instructions').value}`;
-      
-      const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accId}/ai/run/@cf/meta/llama-3-8b-instruct`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: [{ role: 'user', content: prompt }] })
-      });
-      const data = await res.json();
-      html = data.result.response.replace(/```html?/gi, '').replace(/```/g, '').trim();
-      
-      const imgTags = selectedScans.map(s => `<img src="${s.dataUrl}" style="max-width:100%;margin-bottom:20px;box-shadow:0 4px 12px rgba(0,0,0,0.1);border-radius:8px;" />`).join('');
-      html = html.replace('{{IMAGES}}', imgTags);
-    } catch(err) {
-      showToast('AI Error. Check console.', 'error');
-      console.error(err);
-      document.getElementById('generate-btn').textContent = 'Generate AI PDF';
-      return;
+  try {
+    let combinedText = '';
+    for (let i = 0; i < selectedScans.length; i++) {
+      const scan = selectedScans[i];
+      const text = await extractTextFromScan(scan);
+      combinedText += `\n--- Scan ${i+1}: ${scan.name} ---\n${text}\n`;
     }
-  }
 
-  const preview = document.getElementById('preview-doc');
-  document.getElementById('preview-placeholder').style.display = 'none';
-  preview.style.display = 'block';
-  preview.innerHTML = `<iframe style="width:100%;height:100%;border:none;background:#fff;" srcdoc="${html.replace(/"/g, '&quot;')}"></iframe>`;
-  
-  window.generatedHtml = html;
-  
-  document.getElementById('generate-btn').textContent = 'Generate AI PDF';
-  document.getElementById('download-btn').disabled = false;
-  showToast('PDF Layout Ready!', 'success');
-}
+    btn.textContent = 'Thinking...';
+    const docTitle = document.getElementById('doc-title').value || 'Scanned Document';
+    const instructions = document.getElementById('ai-instructions').value || 'Create a clean, formatted professional document using the text provided.';
 
-async function downloadPDF() {
-  if (!window.generatedHtml) return;
-  const container = document.createElement('div');
-  container.innerHTML = window.generatedHtml;
-  
-  const opt = {
-    margin: 10,
-    filename: 'Openscan_Document.pdf',
-    image: { type: 'jpeg', quality: 0.95 },
-    html2canvas: { scale: 2 },
-    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
-  };
-  
-  html2pdf().from(container).set(opt).save();
-  showToast('Downloading PDF...', 'success');
-}
+    const prompt = `You are a strict HTML document generator. Generate a beautiful, clean HTML document layout for a scanned PDF. Title is "${docTitle}". 
+    Instructions: ${instructions}.
+    
+    Here is the raw text extracted from the scans via OCR:
+    ${combinedText}
+    
+    Format the extracted text beautifully based on the instructions. Use placeholders {{IMAGES}} if you want to include the original scan images at the bottom.
+    Output strictly HTML. No markdown wrappers.`;
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// UTILITIES & SETTINGS
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function toggleTheme() {
-  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
-  const newTheme = isDark ? 'light' : 'dark';
-  document.documentElement.setAttribute('data-theme', newTheme);
-  localStorage.setItem('theme', newTheme);
-  const toggle = document.getElementById('dark-mode-toggle');
-  if (toggle) toggle.checked = !isDark;
-}
+    const res = await fetch(`https://api.cloudflare.com/client/v4/accounts/${acc}/ai/run/@cf/meta/llama-3-8b-instruct`, { 
+      method: 'POST', 
+      headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' }, 
+      body: JSON.stringify({ messages: [{ role: 'user', content: prompt }] }) 
+    });
 
-function toggleGuide() {
-  const showGuide = document.getElementById('guide-toggle').checked;
-  document.getElementById('scan-guide').style.display = showGuide ? 'block' : 'none';
-}
+    if (!res.ok) throw new Error('API call failed');
 
-function toggleAutoCrop() {
-  state.autoCrop = document.getElementById('auto-crop-toggle').checked;
-  if (state.autoCrop) {
-    document.getElementById('guide-toggle').checked = true;
-    toggleGuide();
+    const data = await res.json();
+    let html = data.result.response.replace(/```html?/gi, '').replace(/```/g, '').trim();
+    
+    // Inject images if requested by AI, or just append them if it forgot
+    const imgs = selectedScans.map(s => `<img src="${s.dataUrl}" style="max-width:100%;margin-top:20px;box-shadow:0 2px 10px rgba(0,0,0,0.1);border-radius:8px"/>`).join('');
+    if (html.includes('{{IMAGES}}')) {
+      html = html.replace('{{IMAGES}}', imgs); 
+    } else {
+      html = html.replace('</body>', `<div style="page-break-before:always; padding:40px;">${imgs}</div></body>`);
+    }
+
+    renderPreview(html);
+    showToast('AI Layout Ready!', 'success');
+
+  } catch(e) { 
+    showToast('AI Error. Check Keys.', 'error'); 
+    console.error(e); 
+  } finally {
+    btn.textContent = 'Generate AI Document';
+    btn.disabled = false;
   }
 }
 
-function toggleKeyVis(id, btn) {
-  const input = document.getElementById(id);
-  const isPass = input.type === 'password';
-  input.type = isPass ? 'text' : 'password';
-  btn.style.color = isPass ? 'var(--text)' : 'var(--text3)';
+function renderPreview(html) {
+  const p = document.getElementById('preview-doc'); document.getElementById('preview-placeholder').style.display = 'none'; p.style.display = 'block';
+  p.innerHTML = `<iframe style="width:100%;height:100%;border:none;background:white" srcdoc="${html.replace(/"/g, '&quot;')}"></iframe>`;
+  window.currentHtml = html; document.getElementById('download-btn').disabled = false;
 }
 
-function toggleDevMode() {
-  const checked = document.getElementById('dev-mode-toggle').checked;
-  document.getElementById('r2-fields').style.display = checked ? 'block' : 'none';
-  localStorage.setItem('r2-enabled', checked);
+function downloadPDF() {
+  const opt = { margin: 0, filename: 'Openscan.pdf', image: { type: 'jpeg', quality: 0.95 }, html2canvas: { scale: 2 }, jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' } };
+  html2pdf().from(window.currentHtml).set(opt).save();
 }
 
-function saveCfConfig() {
-  localStorage.setItem('cf-key', document.getElementById('cf-api-key').value);
-  localStorage.setItem('cf-acc', document.getElementById('cf-account-id').value);
-  showToast('Cloudflare config saved', 'success');
+// ─── SETTINGS & SYNC ───
+function gisLoaded() { if(localStorage.getItem('gdrive-client-id')) updateSyncUI(); }
+function updateSyncUI() { document.getElementById('sync-dot').style.background = 'var(--success)'; document.getElementById('sync-status-text').textContent = 'Connected'; }
+function connectGDrive() {
+  const id = document.getElementById('gdrive-client-id').value; if(!id) return showToast('Enter Client ID', 'warn');
+  localStorage.setItem('gdrive-client-id', id);
+  google.accounts.oauth2.initTokenClient({ client_id: id, scope: 'https://www.googleapis.com/auth/drive.file', callback: (r) => { if(r.access_token) { localStorage.setItem('gdrive-token', r.access_token); updateSyncUI(); showToast('Drive Connected!', 'success'); } } }).requestAccessToken();
 }
-
-function saveR2Config() {
-  const cfg = {
-    account: document.getElementById('r2-account').value,
-    accessKey: document.getElementById('r2-access-key').value,
-    secret: document.getElementById('r2-secret').value,
-    bucket: document.getElementById('r2-bucket').value,
-  };
-  localStorage.setItem('r2-config', JSON.stringify(cfg));
-  showToast('R2 config saved', 'success');
-}
-
+function saveCfConfig() { localStorage.setItem('cf-key', document.getElementById('cf-api-key').value); localStorage.setItem('cf-acc', document.getElementById('cf-account-id').value); showToast('AI Config Saved'); }
 function refreshSettings() {
   document.getElementById('cf-api-key').value = localStorage.getItem('cf-key') || '';
   document.getElementById('cf-account-id').value = localStorage.getItem('cf-acc') || '';
   document.getElementById('gdrive-client-id').value = localStorage.getItem('gdrive-client-id') || '';
-  
-  try {
-    const r2 = JSON.parse(localStorage.getItem('r2-config') || '{}');
-    if (r2.account) document.getElementById('r2-account').value = r2.account;
-    if (r2.accessKey) document.getElementById('r2-access-key').value = r2.accessKey;
-    if (r2.secret) document.getElementById('r2-secret').value = r2.secret;
-    if (r2.bucket) document.getElementById('r2-bucket').value = r2.bucket;
-  } catch(e) {}
-
-  document.getElementById('dev-mode-toggle').checked = localStorage.getItem('r2-enabled') === 'true';
-  toggleDevMode();
-  
-  document.getElementById('auto-crop-toggle').checked = state.autoCrop;
-  
   estimateStorage();
 }
-
 async function estimateStorage() {
   const el = document.getElementById('storage-used');
-  try {
-    if ('storage' in navigator && 'estimate' in navigator.storage) {
-      const { usage } = await navigator.storage.estimate();
-      const usedMB = (usage / 1024 / 1024).toFixed(1);
-      el.textContent = `${usedMB} MB used (approx) — ${state.scans.length} scans locally stored.`;
-    } else {
-      const totalBytes = state.scans.reduce((sum, s) => sum + (s.dataUrl?.length || 0) * 0.75, 0);
-      el.textContent = `~${(totalBytes / 1024 / 1024).toFixed(1)} MB (estimate)`;
-    }
-  } catch(e) {
-    el.textContent = `${state.scans.length} scans saved locally`;
-  }
+  try { const { usage } = await navigator.storage.estimate(); el.textContent = `${(usage/1024/1024).toFixed(1)} MB used — ${state.scans.length} scans`; } catch(e) { el.textContent = `${state.scans.length} scans locally`; }
 }
-
 async function exportAllScans() {
-  if (state.scans.length === 0) { showToast('No scans to export', 'warn'); return; }
-  if (typeof JSZip === 'undefined') { showToast('ZIP library not loaded', 'error'); return; }
-  
-  showToast('Generating ZIP...', 'success');
-  
-  try {
-    const zip = new JSZip();
-    state.scans.forEach((s, i) => {
-      // Extract base64 data correctly for JSZip
-      const base64Data = s.dataUrl.split(',')[1];
-      // Clean up filename and ensure unique
-      const cleanName = s.name.replace(/[^a-zA-Z0-9]/g, '_') || 'scan';
-      zip.file(`${cleanName}_${i + 1}.jpg`, base64Data, {base64: true});
-    });
-    
-    const content = await zip.generateAsync({type:"blob"});
-    const url = URL.createObjectURL(content);
-    
-    const a = document.createElement('a');
-    a.href = url; 
-    a.download = 'Openscan_Archive.zip';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    
-    showToast('ZIP Downloaded!', 'success');
-  } catch (e) {
-    showToast('Failed to create ZIP', 'error');
-    console.error(e);
-  }
+  if (!state.scans.length) return; showToast('Generating ZIP...');
+  const zip = new JSZip(); state.scans.forEach((s,i) => zip.file(`scan_${i+1}.jpg`, s.dataUrl.split(',')[1], {base64:true}));
+  const content = await zip.generateAsync({type:"blob"}); const url = URL.createObjectURL(content);
+  const a = document.createElement('a'); a.href = url; a.download = 'Openscan_Backup.zip'; a.click();
 }
-
-// ─── MODAL LOGIC ───
+function toggleAutoCrop() { state.autoCrop = document.getElementById('auto-crop-toggle').checked; }
+function toggleTheme() { const d = document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark'; document.documentElement.setAttribute('data-theme', d); localStorage.setItem('theme', d); }
+function toggleKeyVis(id, b) { const i = document.getElementById(id); i.type = i.type==='password'?'text':'password'; }
 function openModal(id) { document.getElementById(id).classList.add('open'); }
 function closeModal(id) { document.getElementById(id).classList.remove('open'); }
+async function confirmClearAll() { document.getElementById('confirm-title').textContent = 'Clear All Data?'; document.getElementById('confirm-subtitle').textContent = 'Permanently delete all scans?'; document.getElementById('confirm-ok-btn').onclick = async () => { state.scans=[]; await db.clear(); renderLibrary(); updateBadge(); closeModal('confirm-modal'); showToast('Cleared'); }; openModal('confirm-modal'); }
+function showToast(m, t='') { const c = document.getElementById('toast-container'); const e = document.createElement('div'); e.className = 'toast'; e.textContent = m; if(t==='success') e.style.background = 'var(--success)'; if(t==='error') e.style.background = 'var(--danger)'; c.appendChild(e); setTimeout(() => e.remove(), 3000); }
 
-function confirmClearAll() {
-  document.getElementById('confirm-title').textContent = 'Clear All Data?';
-  document.getElementById('confirm-subtitle').textContent = `This will permanently delete all ${state.scans.length} scans from your device.`;
-  
-  const okBtn = document.getElementById('confirm-ok-btn');
-  okBtn.textContent = 'Delete All';
-  okBtn.onclick = async () => {
-    state.scans = [];
-    state.selected.clear();
-    await db.clear();
-    renderLibrary();
-    updateBadge();
-    estimateStorage();
-    closeModal('confirm-modal');
-    showToast('All local data cleared', 'success');
-  };
-  
-  openModal('confirm-modal');
-}
-
-function showToast(msg, type='') {
-  const container = document.getElementById('toast-container');
-  const el = document.createElement('div');
-  el.className = `toast`;
-  const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : type === 'warn' ? '⚠' : 'ℹ';
-  el.innerHTML = `<span style="font-weight:bold;margin-right:4px;">${icon}</span> <span>${msg}</span>`;
-  
-  if(type==='success') el.style.background = 'var(--success)';
-  if(type==='error') el.style.background = 'var(--danger)';
-  if(type==='warn') el.style.background = 'var(--warn)';
-  
-  container.appendChild(el);
-  setTimeout(() => el.remove(), 3000);
-}
-
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// INIT
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 window.onload = async () => {
-  const savedTheme = localStorage.getItem('theme');
-  if (savedTheme) {
-    document.documentElement.setAttribute('data-theme', savedTheme);
-    const darkToggle = document.getElementById('dark-mode-toggle');
-    if (darkToggle) darkToggle.checked = savedTheme === 'dark';
-  }
-
-  await loadScans();
-  startCamera();
+  const saved = localStorage.getItem('theme'); if(saved) document.documentElement.setAttribute('data-theme', saved);
+  await loadScans(); startCamera();
 };
 </script>
 </body>
