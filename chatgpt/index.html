@@ -490,8 +490,9 @@
     if (tesseractLoaded) return;
     logStatus('Loading Tesseract.js...');
     try {
-      // create worker
-      worker = Tesseract.createWorker({
+      // tesseract.js v4 createWorker is async and resolves to a worker that is
+      // already loaded and initialised with the given language
+      worker = await Tesseract.createWorker('eng', 1, {
         logger: m => {
           // update progress for main steps
           if (m.status && m.progress !== undefined) {
@@ -506,10 +507,6 @@
           }
         }
       });
-      await worker.load();
-      // default to english; allow other languages by change if desired
-      await worker.loadLanguage('eng');
-      await worker.initialize('eng');
       tesseractLoaded = true;
       tessStatus.textContent = 'yes';
       logStatus('Tesseract ready');
