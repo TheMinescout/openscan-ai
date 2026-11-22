@@ -936,6 +936,28 @@ function renderLibrary(q='') {
   g.innerHTML = f.map(s => `<div class="scan-card ${state.selected.has(s.id)?'selected':''}" onclick="toggleSelect('${s.id}')"><img class="scan-card-thumb" src="${s.dataUrl}"/><div class="scan-card-info"><div class="scan-card-name">${s.name}</div><div class="scan-card-date">${new Date(s.date).toLocaleDateString()}</div></div></div>`).join('');
 }
 function filterScans() { renderLibrary(document.getElementById('search-input').value); }
+function importImages(event) {
+  const input = event.target;
+  const files = [...input.files];
+  if (!files.length) return;
+  const imported = new Array(files.length);
+  let pending = files.length;
+  const done = () => {
+    const scans = imported.filter(Boolean);
+    if (scans.length) { state.scans.unshift(...scans); saveScans(); renderLibrary(); }
+    input.value = '';
+    showToast(scans.length ? `Imported ${scans.length} image${scans.length === 1 ? '' : 's'}` : 'Import failed', scans.length ? 'success' : 'error');
+  };
+  files.forEach((file, i) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      imported[i] = { id: `${Date.now()}-${i}`, name: file.name.replace(/\.[^.]+$/, '') || 'Scan', date: new Date().toISOString(), dataUrl: reader.result, originalDataUrl: reader.result };
+      if (--pending === 0) done();
+    };
+    reader.onerror = () => { if (--pending === 0) done(); };
+    reader.readAsDataURL(file);
+  });
+}
 function toggleSelect(id) { if (state.selected.has(id)) state.selected.delete(id); else state.selected.add(id); renderLibrary(); updateSelectionBar(); }
 function updateSelectionBar() { 
   const bar = document.getElementById('selection-bar'); 
